@@ -14,7 +14,7 @@ import {
   initializeAuth,
 } from 'firebase/auth';
 import { connectFirestoreEmulator, Firestore, getFirestore } from 'firebase/firestore';
-import { createAsyncStorage } from '@react-native-async-storage/async-storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 // getReactNativePersistence solo existe en la build RN de @firebase/auth.
 // Firebase 13 lo selecciona automáticamente cuando el bundler aplica la
 // condición 'react-native' (vía exports). El import desde 'firebase/auth'
@@ -47,14 +47,12 @@ export function getAuthInstance(): Auth {
   if (!auth) {
     const a = getApp();
     try {
-      // Persistencia correcta para Firebase 13 + AsyncStorage 3:
-      //   - createAsyncStorage(namespace) crea un adaptador compatible.
-      //   - getReactNativePersistence(storage) lo envuelve para Auth.
-      // Esta es la receta oficial; las versiones anteriores de AsyncStorage
-      // pasaban el módulo directamente y ya no funciona.
-      const storage = createAsyncStorage('itera-auth');
+      // Persistencia correcta para Firebase 13 + AsyncStorage 2:
+      // pasamos el módulo directamente. En AsyncStorage 3 se usaría
+      // createAsyncStorage + getReactNativePersistence, pero Expo SDK 57
+      // quiere la versión 2.
       auth = initializeAuth(a, {
-        persistence: getReactNativePersistence(storage),
+        persistence: getReactNativePersistence(AsyncStorage),
       });
     } catch {
       // Si initializeAuth falla (por ejemplo en reload de Fast Refresh o

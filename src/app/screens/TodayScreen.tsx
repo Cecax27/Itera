@@ -1,19 +1,17 @@
 // Pantalla "Hoy". Muestra la sesión del día con su propósito, un resumen
 // compacto del progreso semanal, y maneja el caso de descanso.
 //
-// Bloques (de arriba a abajo):
-// 1. Encabezado: día actual + progreso compacto de la semana.
-// 2. Sesión del día (si hay) o descanso (si no).
-// 3. Próxima sesión cuando hoy es descanso.
-//
 // Diseño alineado con la wiki Identidad-visual:
-// - Una acción principal por pantalla (empezar / marcar completada).
+// - Una acción principal por pantalla (Empezar).
 // - Resumen en una línea, no compite con la sesión.
-// - El propósito de la sesión va bajo el título, siempre visible.
+// - Propósito de la sesión bajo el título, siempre visible.
+// - Cards con fade-in al montar.
 
 import { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Button, Card, Screen as ScreenLayout } from '@/app/components';
+import { FadeIn, usePulseLoop } from '@/app/animations';
 import {
   Plan,
   RunSession,
@@ -24,7 +22,8 @@ import {
   getTodaySessions,
   weekDayOf,
 } from '@/domain/planning';
-import { ALL_WEEK_DAYS, WeekDay } from '@/domain/profile';
+import { WeekDay } from '@/domain/profile';
+import { useThemeTokens } from '@/app/theme';
 
 const DAY_LABELS: Record<WeekDay, string> = {
   mon: 'Lunes',
@@ -41,18 +40,22 @@ export interface TodayScreenProps {
 }
 
 export function TodayScreen({ plan }: TodayScreenProps) {
+  const tokens = useThemeTokens();
+  const styles = makeStyles(tokens);
   const todayIso = useMemo(() => new Date().toISOString(), []);
   const day = plan ? weekDayOf(todayIso) : 'mon';
   const todayLabel = plan ? DAY_LABELS[day] : 'Hoy';
 
   if (!plan) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.empty}>Aún no hay plan generado.</Text>
-        <Text style={styles.muted}>
-          Completa el onboarding para que Itera genere tu plan semanal.
-        </Text>
-      </View>
+      <ScreenLayout>
+        <View style={styles.empty}>
+          <Text style={styles.emptyTitle}>Aún no hay plan generado.</Text>
+          <Text style={styles.emptyBody}>
+            Completa el onboarding para que Itera genere tu plan semanal.
+          </Text>
+        </View>
+      </ScreenLayout>
     );
   }
 
@@ -62,76 +65,149 @@ export function TodayScreen({ plan }: TodayScreenProps) {
   const nextSession = isRestDay ? getNextSession(plan, todayIso) : null;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.header}>
+    <ScreenLayout scroll>
+      <FadeIn delay={0}>
         <Text style={styles.dayLabel}>{todayLabel.toUpperCase()}</Text>
         <ProgressLine progress={progress} />
-      </View>
+      </FadeIn>
 
       {isRestDay ? (
-        <RestDayCard day={day} nextSession={nextSession} plan={plan} />
+        <FadeIn delay={120}>
+          <RestDayCard day={day} nextSession={nextSession} plan={plan} />
+        </FadeIn>
       ) : (
         <View style={styles.sessionsList}>
           {todaySessions.map((session, i) => (
-            <SessionCard key={i} session={session} />
+            <FadeIn key={i} delay={120 + i * 80}>
+              <SessionCard session={session} />
+            </FadeIn>
           ))}
         </View>
       )}
-    </ScrollView>
+    </ScreenLayout>
   );
 }
 
 // --- Subcomponentes ----
 
 function ProgressLine({ progress }: { progress: ReturnType<typeof computeWeekProgress> }) {
-  const km = Math.round(progress.totalRunningMeters / 1000);
+  const tokens = useThemeTokens();
+  const km = (progress.totalRunningMeters / 1000).toFixed(1);
   return (
-    <Text style={styles.progressLine}>
-      {progress.totalSessions} sesiones esta semana · {progress.runningSessions} carrera ·{' '}
+    <Text style={[progressStyles.line, { color: tokens.colors.textSecondary }]}>
+      {progress.totalSessions} sesiones · {progress.runningSessions} carrera ·{' '}
       {progress.strengthSessions} fuerza · {km} km
     </Text>
   );
 }
 
+const progressStyles = StyleSheet.create({
+  line: {
+    fontSize: 14,
+    marginTop: 4,
+    fontVariant: ['tabular-nums'],
+  },
+});
+
 function SessionCard({ session }: { session: Session }) {
+  const tokens = useThemeTokens();
   const isStrength = session.discipline === 'strength';
+  const pulse = usePulseLoop(true, 1800);
+
   return (
-    <View style={[styles.card, isStrength ? styles.cardStrength : styles.cardRunning]}>
-      <View style={styles.cardHeader}>
-        <Text style={styles.discipline}>
+    <Card accent={isStrength ? 'lime' : 'run'} padding="lg" style={sessionCardStyles.cardSpacing}>
+      <View style={sessionCardStyles.header}>
+        <Text style={[sessionCardStyles.discipline, { color: tokens.colors.textSecondary }]}>
           {isStrength ? 'FUERZA' : 'CARRERA'}
         </Text>
-        <Text style={styles.meta}>~{session.estimatedDurationMinutes} min</Text>
+        <Text style={[sessionCardStyles.meta, { color: tokens.colors.textSecondary }]}>
+          ~{session.estimatedDurationMinutes} min
+        </Text>
       </View>
 
-      <Text style={styles.title}>{sessionTitle(session)}</Text>
+      <Text style={[sessionCardStyles.title, { color: tokens.colors.ink }]}>
+        {sessionTitle(session)}
+      </Text>
 
       {session.purpose && (
-        <Text style={styles.purpose}>{session.purpose}</Text>
+        <Text style={[sessionCardStyles.purpose, { color: tokens.colors.textSecondary }]}>
+          {session.purpose}
+        </Text>
       )}
 
-      {isStrength && (
-        <StrengthDetails session={session} />
-      )}
-      {!isStrength && (
-        <RunningDetails session={session} />
-      )}
+      {isStrength && <StrengthDetails session={session} />}
+      {!isStrength && <RunningDetails session={session} />}
 
-      <View style={styles.actions}>
-        <ActionButton primary label="Empezar" />
+      <View style={sessionCardStyles.actions}>
+        <Button label="Empezar" onPress={() => {}} variant="primary" />
+        <Pressable style={sessionCardStyles.secondaryAction}>
+          <Text style={[sessionCardStyles.secondaryActionText, { color: tokens.colors.ink }]}>
+            No he podido
+          </Text>
+        </Pressable>
       </View>
-    </View>
+    </Card>
   );
 }
 
+const sessionCardStyles = StyleSheet.create({
+  cardSpacing: { marginBottom: 12 },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  discipline: {
+    fontSize: 11,
+    fontWeight: '500',
+    letterSpacing: 0.5,
+  },
+  meta: {
+    fontSize: 12,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  purpose: {
+    fontSize: 14,
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  secondaryAction: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E9EAE3',
+  },
+  secondaryActionText: {
+    fontSize: 15,
+    fontWeight: '500',
+    opacity: 0.7,
+  },
+});
+
 function StrengthDetails({ session }: { session: StrengthSession }) {
+  const tokens = useThemeTokens();
   if (session.exercises.length === 0) {
-    return <Text style={styles.detail}>Sin ejercicios definidos.</Text>;
+    return <Text style={[{ color: tokens.colors.textSecondary }]}>Sin ejercicios definidos.</Text>;
   }
   return (
-    <View style={styles.detailsList}>
+    <View style={detailStyles.list}>
       {session.exercises.map((ex, i) => (
-        <Text key={i} style={styles.detail}>
+        <Text
+          key={i}
+          style={[detailStyles.item, { color: tokens.colors.textSecondary }]}
+        >
           · {ex.name}: {ex.sets}×{ex.reps}
           {ex.targetWeightKg > 0 ? ` @ ${ex.targetWeightKg} kg` : ''}
         </Text>
@@ -141,16 +217,22 @@ function StrengthDetails({ session }: { session: StrengthSession }) {
 }
 
 function RunningDetails({ session }: { session: RunSession }) {
+  const tokens = useThemeTokens();
   const totalMeters = session.blocks.reduce(
     (sum, b) => sum + b.distanceMeters * (b.repetitions ?? 1),
     0,
   );
   const km = (totalMeters / 1000).toFixed(1);
   return (
-    <View style={styles.detailsList}>
-      <Text style={styles.detail}>· {session.blocks.length} bloque(s), {km} km totales</Text>
+    <View style={detailStyles.list}>
+      <Text style={[detailStyles.item, { color: tokens.colors.textSecondary }]}>
+        · {session.blocks.length} bloque(s), {km} km totales
+      </Text>
       {session.blocks.map((b, i) => (
-        <Text key={i} style={styles.detail}>
+        <Text
+          key={i}
+          style={[detailStyles.item, { color: tokens.colors.textSecondary }]}
+        >
           · {b.type}: {b.distanceMeters}m
           {b.repetitions && b.repetitions > 1 ? ` × ${b.repetitions}` : ''}
         </Text>
@@ -159,23 +241,29 @@ function RunningDetails({ session }: { session: RunSession }) {
   );
 }
 
+const detailStyles = StyleSheet.create({
+  list: { marginBottom: 12, gap: 2 },
+  item: { fontSize: 13, lineHeight: 18 },
+});
+
 function RestDayCard({
   day,
   nextSession,
-  plan,
+  plan: _plan,
 }: {
   day: WeekDay;
   nextSession: ReturnType<typeof getNextSession>;
   plan: Plan;
 }) {
+  const tokens = useThemeTokens();
   if (!nextSession) {
     return (
-      <View style={styles.card}>
-        <Text style={styles.title}>Hoy descansas</Text>
-        <Text style={styles.purpose}>
+      <Card padding="lg">
+        <Text style={[restStyles.title, { color: tokens.colors.ink }]}>Hoy descansas</Text>
+        <Text style={[restStyles.purpose, { color: tokens.colors.textSecondary }]}>
           No hay sesiones programadas en tu plan semanal. Ve a la pestaña Plan para revisar.
         </Text>
-      </View>
+      </Card>
     );
   }
 
@@ -184,36 +272,50 @@ function RestDayCard({
   const firstSession = nextSession.sessions[0];
 
   return (
-    <View style={styles.card}>
-      <Text style={styles.title}>Hoy descansas</Text>
-      <Text style={styles.purpose}>
+    <Card padding="lg">
+      <Text style={[restStyles.title, { color: tokens.colors.ink }]}>Hoy descansas</Text>
+      <Text style={[restStyles.purpose, { color: tokens.colors.textSecondary }]}>
         {isToday
           ? 'Tu siguiente sesión también es hoy, pero ya pasó.'
           : 'Tu cuerpo y tu plan están alineados. La próxima sesión está agendada.'}
       </Text>
 
-      <View style={styles.nextSessionBox}>
-        <Text style={styles.nextSessionLabel}>
-          {isToday ? 'Esta era la última:' : 'PRÓXIMA'}
+      <View
+        style={[
+          restStyles.nextBox,
+          {
+            backgroundColor: tokens.colors.surface,
+            borderColor: tokens.colors.border,
+          },
+        ]}
+      >
+        <Text style={[restStyles.nextLabel, { color: tokens.colors.textSecondary }]}>
+          {isToday ? 'ESTA ERA LA ÚLTIMA' : 'PRÓXIMA'}
         </Text>
-        <Text style={styles.nextSessionTitle}>
+        <Text style={[restStyles.nextTitle, { color: tokens.colors.ink }]}>
           {nextDayLabel} · {sessionTitle(firstSession)}
         </Text>
-        <Text style={styles.detail}>
+        <Text style={[restStyles.nextMeta, { color: tokens.colors.textSecondary }]}>
           ~{firstSession.estimatedDurationMinutes} min
         </Text>
       </View>
-    </View>
+    </Card>
   );
 }
 
-function ActionButton({ label, primary }: { label: string; primary?: boolean }) {
-  return (
-    <View style={[styles.actionButton, primary ? styles.actionButtonPrimary : styles.actionButtonSecondary]}>
-      <Text style={primary ? styles.actionTextPrimary : styles.actionTextSecondary}>{label}</Text>
-    </View>
-  );
-}
+const restStyles = StyleSheet.create({
+  title: { fontSize: 24, fontWeight: '600', marginBottom: 8 },
+  purpose: { fontSize: 14, marginBottom: 16, lineHeight: 20 },
+  nextBox: {
+    marginTop: 12,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  nextLabel: { fontSize: 11, fontWeight: '500', letterSpacing: 0.5, marginBottom: 4 },
+  nextTitle: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
+  nextMeta: { fontSize: 13 },
+});
 
 function sessionTitle(session: Session): string {
   if (session.discipline === 'strength') {
@@ -233,165 +335,31 @@ function sessionTitle(session: Session): string {
   }
 }
 
-// --- Estilos ----
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F7F7F2',
-  },
-  content: {
-    padding: 24,
-    paddingBottom: 48,
-  },
-  center: {
-    flex: 1,
-    backgroundColor: '#F7F7F2',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  empty: {
-    fontSize: 18,
-    color: '#20231F',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  muted: {
-    fontSize: 14,
-    color: '#20231F',
-    opacity: 0.6,
-    textAlign: 'center',
-  },
-  header: {
-    marginBottom: 24,
-  },
-  dayLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#20231F',
-    opacity: 0.6,
-    letterSpacing: 1,
-    marginBottom: 4,
-  },
-  progressLine: {
-    fontSize: 14,
-    color: '#20231F',
-    opacity: 0.7,
-  },
-  sessionsList: {
-    gap: 16,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#E9EAE3',
-  },
-  cardStrength: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#C8F169',
-  },
-  cardRunning: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#5BB3F2',
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  discipline: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#20231F',
-    opacity: 0.6,
-    letterSpacing: 0.5,
-  },
-  meta: {
-    fontSize: 12,
-    color: '#20231F',
-    opacity: 0.6,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: '#20231F',
-    marginBottom: 4,
-  },
-  purpose: {
-    fontSize: 14,
-    color: '#20231F',
-    opacity: 0.7,
-    marginBottom: 12,
-    lineHeight: 20,
-  },
-  detailsList: {
-    marginBottom: 12,
-    gap: 2,
-  },
-  detail: {
-    fontSize: 13,
-    color: '#20231F',
-    opacity: 0.7,
-    lineHeight: 18,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 4,
-  },
-  actionButton: {
-    flex: 1,
-    minHeight: 48,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actionButtonPrimary: {
-    backgroundColor: '#C8F169',
-  },
-  actionButtonSecondary: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E9EAE3',
-  },
-  actionTextPrimary: {
-    color: '#20231F',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  actionTextSecondary: {
-    color: '#20231F',
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  nextSessionBox: {
-    marginTop: 12,
-    padding: 16,
-    backgroundColor: '#F7F7F2',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E9EAE3',
-  },
-  nextSessionLabel: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#20231F',
-    opacity: 0.6,
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  nextSessionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#20231F',
-    marginBottom: 4,
-  },
-});
-
-// ALL_WEEK_DAYS se importa aunque no se use directamente; lo dejo por
-// referencia para hitos futuros que filtren por día de la semana.
-void ALL_WEEK_DAYS;
+function makeStyles(tokens: ReturnType<typeof useThemeTokens>) {
+  return StyleSheet.create({
+    dayLabel: {
+      fontSize: tokens.fontSize.caption,
+      fontWeight: tokens.fontWeight.medium,
+      color: tokens.colors.textSecondary,
+      letterSpacing: 1.5,
+      marginBottom: 8,
+    },
+    sessionsList: {},
+    empty: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    emptyTitle: {
+      fontSize: tokens.fontSize.titleSection,
+      color: tokens.colors.ink,
+      marginBottom: 8,
+      textAlign: 'center',
+    },
+    emptyBody: {
+      fontSize: tokens.fontSize.body,
+      color: tokens.colors.textSecondary,
+      textAlign: 'center',
+    },
+  });
+}

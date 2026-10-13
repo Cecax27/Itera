@@ -1,12 +1,25 @@
 // Pantalla del plan semanal. Muestra los 7 días con su sesión si la hay.
 // Por ahora es solo lectura; la edición llega en un hito posterior.
 
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
+import { Card, Screen as ScreenLayout } from '@/app/components';
+import { FadeIn } from '@/app/animations';
 import { ALL_WEEK_DAYS, WeekDay } from '@/domain/profile';
 import { Plan, Session } from '@/domain/planning';
+import { useThemeTokens } from '@/app/theme';
 
 const DAY_LABELS: Record<WeekDay, string> = {
+  mon: 'L',
+  tue: 'M',
+  wed: 'X',
+  thu: 'J',
+  fri: 'V',
+  sat: 'S',
+  sun: 'D',
+};
+
+const DAY_FULL_LABELS: Record<WeekDay, string> = {
   mon: 'Lunes',
   tue: 'Martes',
   wed: 'Miércoles',
@@ -21,93 +34,132 @@ export interface PlanScreenProps {
 }
 
 export function PlanScreen({ plan }: PlanScreenProps) {
+  const tokens = useThemeTokens();
+  const styles = makeStyles(tokens);
+
   if (!plan) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.empty}>Aún no hay plan generado.</Text>
-        <Text style={styles.muted}>
-          El primer plan se genera automáticamente al completar el onboarding.
-        </Text>
-      </View>
+      <ScreenLayout>
+        <View style={styles.empty}>
+          <Text style={styles.emptyTitle}>Aún no hay plan generado.</Text>
+          <Text style={styles.emptyBody}>
+            El primer plan se genera automáticamente al completar el onboarding.
+          </Text>
+        </View>
+      </ScreenLayout>
     );
   }
 
-  return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Plan de la semana</Text>
-        <Text style={styles.meta}>Semana del {plan.weekStart}</Text>
-      </View>
+  const today = new Date();
+  const todayIso = today.toISOString();
+  const currentDay = ALL_WEEK_DAYS[(today.getUTCDay() + 6) % 7]; // ajustar a L=0
 
-      {ALL_WEEK_DAYS.map((day) => {
+  return (
+    <ScreenLayout scroll>
+      <FadeIn delay={0}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Tu plan</Text>
+          <Text style={styles.meta}>
+            Semana del {plan.weekStart} · {Object.values(plan.sessions).reduce((s, l) => s + l.length, 0)} sesiones
+          </Text>
+        </View>
+      </FadeIn>
+
+      {ALL_WEEK_DAYS.map((day, i) => {
         const sessions = plan.sessions[day];
+        const isToday = day === currentDay;
         return (
-          <View key={day} style={styles.dayRow}>
-            <View style={styles.dayHeader}>
-              <Text style={styles.dayLabel}>{DAY_LABELS[day]}</Text>
+          <FadeIn key={day} delay={60 + i * 40}>
+            <View style={[styles.dayRow, isToday && styles.todayRow]}>
+              <View style={[styles.dayHeader, isToday && styles.todayHeader]}>
+                <Text
+                  style={[
+                    styles.dayBadge,
+                    isToday && styles.todayBadge,
+                  ]}
+                >
+                  {DAY_LABELS[day]}
+                </Text>
+                <Text style={styles.dayFullLabel}>
+                  {DAY_FULL_LABELS[day]}{isToday ? ' · hoy' : ''}
+                </Text>
+              </View>
+              {sessions.length === 0 ? (
+                <Text style={styles.restDay}>Descanso</Text>
+              ) : (
+                sessions.map((session, j) => (
+                  <SessionCard key={j} session={session} />
+                ))
+              )}
             </View>
-            {sessions.length === 0 ? (
-              <Text style={styles.restDay}>Descanso</Text>
-            ) : (
-              sessions.map((session, i) => (
-                <SessionCard key={i} session={session} />
-              ))
-            )}
-          </View>
+          </FadeIn>
         );
       })}
-    </ScrollView>
+    </ScreenLayout>
   );
 }
 
 function SessionCard({ session }: { session: Session }) {
+  const tokens = useThemeTokens();
   return (
-    <View style={[styles.card, session.discipline === 'strength' ? styles.cardStrength : styles.cardRunning]}>
-      <View style={styles.cardHeader}>
-        <Text style={styles.cardDiscipline}>
-          {session.discipline === 'strength' ? 'Fuerza' : 'Carrera'}
+    <Card
+      accent={session.discipline === 'strength' ? 'lime' : 'run'}
+      padding="md"
+      style={sessionCardStyles.cardSpacing}
+    >
+      <View style={sessionCardStyles.header}>
+        <Text style={[sessionCardStyles.discipline, { color: tokens.colors.textSecondary }]}>
+          {session.discipline === 'strength' ? 'FUERZA' : 'CARRERA'}
         </Text>
-        <Text style={styles.cardMeta}>~{session.estimatedDurationMinutes} min</Text>
+        <Text style={[sessionCardStyles.meta, { color: tokens.colors.textSecondary }]}>
+          ~{session.estimatedDurationMinutes} min
+        </Text>
       </View>
-      {session.discipline === 'strength' && (
-        <>
-          <Text style={styles.cardTitle}>{strengthTitle(session)}</Text>
-          {session.exercises.length > 0 && (
-            <Text style={styles.cardDetail}>
-              {session.exercises.length} ejercicio(s): {session.exercises.slice(0, 3).map((e) => e.name).join(', ')}
-              {session.exercises.length > 3 ? '…' : ''}
-            </Text>
-          )}
-        </>
+      <Text style={[sessionCardStyles.title, { color: tokens.colors.ink }]}>
+        {sessionTitle(session)}
+      </Text>
+      {session.discipline === 'strength' && session.exercises.length > 0 && (
+        <Text style={[sessionCardStyles.detail, { color: tokens.colors.textSecondary }]}>
+          {session.exercises.length} ejercicio(s): {session.exercises.slice(0, 3).map((e) => e.name).join(', ')}
+          {session.exercises.length > 3 ? '…' : ''}
+        </Text>
       )}
       {session.discipline === 'running' && (
-        <>
-          <Text style={styles.cardTitle}>{runTitle(session)}</Text>
-          {session.blocks.length > 0 && (
-            <Text style={styles.cardDetail}>
-              {session.blocks.length} bloque(s), {Math.round(totalDistance(session) / 100) / 10} km totales
-            </Text>
-          )}
-        </>
+        <Text style={[sessionCardStyles.detail, { color: tokens.colors.textSecondary }]}>
+          {session.blocks.length} bloque(s), {(totalDistance(session) / 1000).toFixed(1)} km totales
+        </Text>
       )}
-      {session.purpose && (
-        <Text style={styles.purpose}>{session.purpose}</Text>
-      )}
-    </View>
+    </Card>
   );
 }
 
-function strengthTitle(s: Extract<Session, { discipline: 'strength' }>): string {
-  switch (s.type) {
-    case 'upper': return 'Tren superior';
-    case 'lower': return 'Tren inferior';
-    case 'full_body': return 'Cuerpo completo';
-    case 'accessory': return 'Accesorios';
-  }
-}
+const sessionCardStyles = StyleSheet.create({
+  cardSpacing: { marginTop: 6 },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  discipline: {
+    fontSize: 11,
+    fontWeight: '500',
+    letterSpacing: 0.5,
+  },
+  meta: { fontSize: 12 },
+  title: { fontSize: 17, fontWeight: '600', marginBottom: 4 },
+  detail: { fontSize: 13, lineHeight: 18 },
+});
 
-function runTitle(s: Extract<Session, { discipline: 'running' }>): string {
-  switch (s.type) {
+function sessionTitle(session: Session): string {
+  if (session.discipline === 'strength') {
+    switch (session.type) {
+      case 'upper': return 'Tren superior';
+      case 'lower': return 'Tren inferior';
+      case 'full_body': return 'Cuerpo completo';
+      case 'accessory': return 'Accesorios';
+    }
+  }
+  switch (session.type) {
     case 'easy': return 'Carrera suave';
     case 'long': return 'Carrera larga';
     case 'tempo': return 'Tempo';
@@ -120,118 +172,78 @@ function totalDistance(s: Extract<Session, { discipline: 'running' }>): number {
   return s.blocks.reduce((sum, b) => sum + b.distanceMeters * (b.repetitions ?? 1), 0);
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F7F7F2',
-  },
-  center: {
-    flex: 1,
-    backgroundColor: '#F7F7F2',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  empty: {
-    fontSize: 18,
-    color: '#20231F',
-    marginBottom: 8,
-  },
-  muted: {
-    fontSize: 14,
-    color: '#20231F',
-    opacity: 0.6,
-    textAlign: 'center',
-  },
-  header: {
-    padding: 24,
-    paddingBottom: 8,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '600',
-    color: '#20231F',
-    marginBottom: 4,
-  },
-  meta: {
-    fontSize: 14,
-    color: '#20231F',
-    opacity: 0.6,
-  },
-  dayRow: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E9EAE3',
-  },
-  dayHeader: {
-    marginBottom: 8,
-  },
-  dayLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#20231F',
-    opacity: 0.6,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  restDay: {
-    fontSize: 14,
-    color: '#20231F',
-    opacity: 0.4,
-    fontStyle: 'italic',
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#E9EAE3',
-  },
-  cardStrength: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#C8F169',
-  },
-  cardRunning: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#5BB3F2',
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  cardDiscipline: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#20231F',
-    opacity: 0.6,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  cardMeta: {
-    fontSize: 12,
-    color: '#20231F',
-    opacity: 0.6,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#20231F',
-    marginBottom: 4,
-  },
-  cardDetail: {
-    fontSize: 14,
-    color: '#20231F',
-    opacity: 0.7,
-    marginBottom: 4,
-  },
-  purpose: {
-    fontSize: 13,
-    color: '#20231F',
-    opacity: 0.6,
-    fontStyle: 'italic',
-    marginTop: 4,
-  },
-});
+function makeStyles(tokens: ReturnType<typeof useThemeTokens>) {
+  return StyleSheet.create({
+    header: {
+      marginBottom: tokens.spacing.lg,
+    },
+    title: {
+      fontSize: tokens.fontSize.titleBig,
+      fontWeight: tokens.fontWeight.bold,
+      color: tokens.colors.ink,
+      marginBottom: 4,
+      letterSpacing: -0.5,
+    },
+    meta: {
+      fontSize: tokens.fontSize.body,
+      color: tokens.colors.textSecondary,
+      fontVariant: ['tabular-nums'],
+    },
+    dayRow: {
+      paddingVertical: tokens.spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: tokens.colors.border,
+    },
+    todayRow: {},
+    dayHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: tokens.spacing.sm,
+      marginBottom: tokens.spacing.sm,
+    },
+    todayHeader: {},
+    dayBadge: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: tokens.colors.surface,
+      color: tokens.colors.textSecondary,
+      textAlign: 'center',
+      textAlignVertical: 'center',
+      fontSize: 12,
+      fontWeight: '600',
+      lineHeight: 28,
+      overflow: 'hidden',
+    },
+    todayBadge: {
+      backgroundColor: tokens.colors.accent,
+      color: tokens.colors.accentInk,
+    },
+    dayFullLabel: {
+      fontSize: tokens.fontSize.body,
+      fontWeight: '500',
+      color: tokens.colors.ink,
+    },
+    restDay: {
+      fontSize: tokens.fontSize.body,
+      color: tokens.colors.textSecondary,
+      opacity: 0.6,
+      fontStyle: 'italic',
+    },
+    empty: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    emptyTitle: {
+      fontSize: tokens.fontSize.titleSection,
+      color: tokens.colors.ink,
+      marginBottom: 8,
+    },
+    emptyBody: {
+      fontSize: tokens.fontSize.body,
+      color: tokens.colors.textSecondary,
+      textAlign: 'center',
+    },
+  });
+}

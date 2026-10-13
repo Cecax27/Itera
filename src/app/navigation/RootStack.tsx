@@ -6,16 +6,13 @@
 // - con sesión pero sin perfil: Onboarding (al terminar, genera plan).
 // - con sesión y perfil: stack principal con tabs (Hoy, Plan, Ajustes).
 //
-// En H3 este stack se sustituye por tabs con @react-navigation/bottom-tabs.
-//
-// Detalle importante: usePlan() debe estar en una sola instancia para
-// que la generación del plan en el onboarding sea visible desde la
-// pestaña Plan. Por eso, en lugar de llamar UsePlan() dentro de
-// PlanTabContent (que sería una segunda instancia), lo llamamos aquí
-// y pasamos el plan como prop a la pantalla.
+// Detalle importante: usePlan() se llama una sola vez aquí; el plan
+// resultante se pasa como prop a las pantallas que lo necesitan. Si
+// las pantallas llamaran usePlan() por su cuenta, cada una tendría su
+// propio estado y no compartirían el resultado del save/generate.
 
 import { Ionicons } from '@expo/vector-icons';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DarkTheme, DefaultTheme, Theme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
@@ -26,6 +23,7 @@ import { OnboardingScreen } from '@/app/screens/OnboardingScreen';
 import { PlanScreen } from '@/app/screens/PlanScreen';
 import { TodayScreen } from '@/app/screens/TodayScreen';
 import { SettingsScreen } from '@/app/screens/SettingsScreen';
+import { useThemeTokens } from '@/app/theme';
 import { Profile } from '@/domain/profile';
 import { Plan } from '@/domain/planning';
 
@@ -46,13 +44,14 @@ export function RootStackComponent() {
   const { status: authStatus } = useAuth();
   const { status: profileStatus, profile, save } = useProfile();
   const { plan, generateFromProfile } = usePlan();
+  const tokens = useThemeTokens();
 
   let content: React.ReactNode;
   if (authStatus === 'loading' || profileStatus === 'loading') {
     content = (
-      <View style={styles.center}>
-        <ActivityIndicator color="#C8F169" />
-        <Text style={styles.muted}>Cargando…</Text>
+      <View style={[styles.center, { backgroundColor: tokens.colors.canvas }]}>
+        <ActivityIndicator color={tokens.colors.accent} />
+        <Text style={[styles.muted, { color: tokens.colors.textSecondary }]}>Cargando…</Text>
       </View>
     );
   } else if (authStatus === 'unauthenticated') {
@@ -63,13 +62,8 @@ export function RootStackComponent() {
         onComplete={async (p: Profile) => {
           try {
             await save(p);
-            // Generamos el plan aquí mismo para que el usuario lo vea
-            // sin tener que esperar a usePlan a recargarlo.
             await generateFromProfile(p);
           } catch (err) {
-            // Si algo falla al guardar perfil o generar plan, lo dejamos
-            // en consola para diagnóstico. En hitos futuros mostraremos
-            // un toast o pantalla de error.
             console.warn('[onboarding completion]', err);
             throw err;
           }
@@ -80,18 +74,45 @@ export function RootStackComponent() {
     content = <MainTabs plan={plan} />;
   }
 
-  return <NavigationContainer>{content}</NavigationContainer>;
+  const navTheme: Theme = tokens.scheme === 'dark' ? darkNavTheme : lightNavTheme;
+
+  return <NavigationContainer theme={navTheme}>{content}</NavigationContainer>;
 }
 
+const lightNavTheme: Theme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    background: '#F7F7F2',
+    card: '#F7F7F2',
+    text: '#20231F',
+    border: '#E9EAE3',
+    primary: '#C8F169',
+  },
+};
+
+const darkNavTheme: Theme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    background: '#171A17',
+    card: '#171A17',
+    text: '#F0F0EB',
+    border: '#2F332F',
+    primary: '#C8F169',
+  },
+};
+
 function MainTabs({ plan }: { plan: Plan | null }) {
+  const tokens = useThemeTokens();
   return (
     <Tabs.Navigator
       screenOptions={{
-        tabBarActiveTintColor: '#20231F',
-        tabBarInactiveTintColor: '#20231F80',
-        tabBarStyle: { backgroundColor: '#F7F7F2', borderTopColor: '#E9EAE3' },
-        headerStyle: { backgroundColor: '#F7F7F2' },
-        headerTintColor: '#20231F',
+        tabBarActiveTintColor: tokens.colors.tabBarActive,
+        tabBarInactiveTintColor: tokens.colors.tabBarInactive,
+        tabBarStyle: { backgroundColor: tokens.colors.canvas, borderTopColor: tokens.colors.border },
+        headerStyle: { backgroundColor: tokens.colors.canvas },
+        headerTintColor: tokens.colors.ink,
         headerTitleStyle: { fontWeight: '600' },
       }}
     >
@@ -106,41 +127,41 @@ function MainTabs({ plan }: { plan: Plan | null }) {
       >
         {() => <TodayScreen plan={plan} />}
       </Tabs.Screen>
-      <Tabs.Screen name="Plan" options={{
-        title: 'Plan',
-        tabBarIcon: ({ color, size }) => (
-          <Ionicons name="calendar-outline" color={color} size={size} />
-        ),
-      }}>
+      <Tabs.Screen
+        name="Plan"
+        options={{
+          title: 'Plan',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="calendar-outline" color={color} size={size} />
+          ),
+        }}
+      >
         {() => <PlanScreen plan={plan} />}
       </Tabs.Screen>
       <Tabs.Screen
         name="Settings"
-        component={SettingsScreen}
         options={{
           title: 'Ajustes',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="settings-outline" color={color} size={size} />
           ),
         }}
-      />
+      >
+        {() => <SettingsScreen />}
+      </Tabs.Screen>
     </Tabs.Navigator>
   );
 }
-
-
 
 const styles = StyleSheet.create({
   center: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F7F7F2',
     gap: 8,
   },
   muted: {
-    color: '#20231F',
-    opacity: 0.6,
+    fontSize: 14,
   },
 });
 

@@ -1,96 +1,127 @@
-// Pantalla "Ajustes" con edición de perfil (placeholder hasta H1.b) y
-// cierre de sesión. La edición real del perfil (re-onboarding) se abordará
-// en un hito posterior.
+// Pantalla "Ajustes" con sesión activa y datos del perfil.
+// Edición real del perfil llega en un hito posterior.
 
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
+import { Button, Card, Screen as ScreenLayout } from '@/app/components';
 import { useAuth, useProfile } from '@/app/hooks';
+import { useThemeTokens } from '@/app/theme';
 
 export function SettingsScreen() {
+  const tokens = useThemeTokens();
+  const styles = makeStyles(tokens);
   const { user, signOut } = useAuth();
   const { profile } = useProfile();
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.section}>
-        <Text style={styles.label}>Sesión</Text>
-        <Text style={styles.value}>{user?.email ?? user?.displayName ?? user?.id ?? '—'}</Text>
-        <Text style={styles.meta}>Proveedor: {user?.provider ?? '—'}</Text>
+    <ScreenLayout scroll>
+      <Text style={styles.sectionTitle}>Sesión</Text>
+      <Card>
+        <Row label="Email" value={user?.email ?? '—'} />
+        <Row label="Proveedor" value={user?.provider ?? '—'} />
+        <Row label="ID" value={user?.id ? `${user.id.slice(0, 12)}…` : '—'} mono />
+        <View style={styles.divider} />
+        <Button label="Cerrar sesión" onPress={() => signOut()} variant="danger" />
+      </Card>
 
-        <Text style={styles.buttonDanger} onPress={() => signOut()}>
-          Cerrar sesión
-        </Text>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.label}>Perfil</Text>
+      <Text style={styles.sectionTitle}>Perfil</Text>
+      <Card>
         {profile ? (
           <>
-            <Text style={styles.value}>
-              {profile.name ? `${profile.name}, ` : ''}
-              {profile.experience}
-            </Text>
-            <Text style={styles.meta}>
-              {profile.secondaryGoals.length + 1} objetivo(s) registrado(s).
-            </Text>
-            <Text style={styles.meta}>
-              {Object.values(profile.equipment).filter(Boolean).length} piezas de equipamiento.
-            </Text>
+            <Row
+              label="Nombre"
+              value={profile.name ?? '—'}
+            />
+            <Row
+              label="Experiencia"
+              value={experienceLabel(profile.experience)}
+            />
+            <Row
+              label="Objetivos"
+              value={`${profile.secondaryGoals.length + 1} (${profile.primaryGoal.discipline})`}
+            />
+            <Row
+              label="Equipamiento"
+              value={`${Object.values(profile.equipment).filter(Boolean).length} piezas`}
+            />
+            <Row
+              label="Lesiones activas"
+              value={`${profile.restrictions.injuries.length}`}
+            />
           </>
         ) : (
-          <Text style={styles.meta}>Sin perfil todavía.</Text>
+          <Text style={styles.muted}>Sin perfil todavía.</Text>
         )}
+        <View style={styles.divider} />
         <Text style={styles.muted}>
           La edición de perfil post-onboarding llega en un hito posterior.
         </Text>
-      </View>
-    </ScrollView>
+      </Card>
+    </ScreenLayout>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F7F7F2',
-  },
-  section: {
-    padding: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E9EAE3',
+function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  const tokens = useThemeTokens();
+  return (
+    <View style={rowStyles.row}>
+      <Text style={rowStyles.label}>{label}</Text>
+      <Text style={[rowStyles.value, mono && rowStyles.mono]}>{value}</Text>
+    </View>
+  );
+}
+
+const rowStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
   },
   label: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#20231F',
-    opacity: 0.6,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 8,
+    fontSize: 15,
+    color: '#5C5F58',
   },
   value: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '500',
     color: '#20231F',
-    marginBottom: 4,
   },
-  meta: {
-    fontSize: 14,
-    color: '#20231F',
-    opacity: 0.7,
-    marginBottom: 4,
-  },
-  muted: {
-    fontSize: 12,
-    color: '#20231F',
-    opacity: 0.5,
-    marginTop: 12,
-    fontStyle: 'italic',
-  },
-  buttonDanger: {
-    marginTop: 16,
-    color: '#A33',
-    fontSize: 14,
-    fontWeight: '500',
-    textDecorationLine: 'underline',
+  mono: {
+    fontFamily: 'monospace',
+    fontSize: 13,
   },
 });
+
+function experienceLabel(lvl: string): string {
+  switch (lvl) {
+    case 'beginner': return 'Principiante';
+    case 'intermediate': return 'Intermedio';
+    case 'advanced': return 'Avanzado';
+    default: return lvl;
+  }
+}
+
+function makeStyles(tokens: ReturnType<typeof useThemeTokens>) {
+  return StyleSheet.create({
+    sectionTitle: {
+      fontSize: tokens.fontSize.label,
+      fontWeight: tokens.fontWeight.medium,
+      color: tokens.colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+      marginTop: tokens.spacing.xl,
+      marginBottom: tokens.spacing.md,
+    },
+    divider: {
+      height: 1,
+      backgroundColor: tokens.colors.border,
+      marginVertical: tokens.spacing.md,
+    },
+    muted: {
+      fontSize: tokens.fontSize.label,
+      color: tokens.colors.textSecondary,
+      fontStyle: 'italic',
+    },
+  });
+}

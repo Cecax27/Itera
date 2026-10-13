@@ -1,3 +1,7 @@
+// Inicializa Gesture Handler antes de montar la app. Es obligatorio
+// para que react-native-gesture-handler funcione correctamente.
+import 'react-native-gesture-handler';
+
 import { registerRootComponent } from 'expo';
 
 import App from './src/App';
