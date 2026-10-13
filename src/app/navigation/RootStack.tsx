@@ -61,10 +61,18 @@ export function RootStackComponent() {
     content = (
       <OnboardingScreen
         onComplete={async (p: Profile) => {
-          await save(p);
-          // Generamos el plan aquí mismo para que el usuario lo vea
-          // sin tener que esperar a usePlan a recargarlo.
-          await generateFromProfile(p);
+          try {
+            await save(p);
+            // Generamos el plan aquí mismo para que el usuario lo vea
+            // sin tener que esperar a usePlan a recargarlo.
+            await generateFromProfile(p);
+          } catch (err) {
+            // Si algo falla al guardar perfil o generar plan, lo dejamos
+            // en consola para diagnóstico. En hitos futuros mostraremos
+            // un toast o pantalla de error.
+            console.warn('[onboarding completion]', err);
+            throw err;
+          }
         }}
       />
     );
