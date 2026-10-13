@@ -75,15 +75,18 @@ El objetivo central: **"Entrena con un propósito. Entiende tu progreso. Siempre
 
 - **H0** (Bootstrap y andamiaje técnico): estructura de tres capas, navegación mínima, smoke test de Firebase, emulador opcional, Vitest configurado. ✅
 - **H1** (Perfil y objetivos deportivos): modelo de dominio con validadores (18 tests), repositorio de Firestore, hook `useProfile`, onboarding de 8 pasos, reglas de seguridad, sign-in anónimo provisional para desarrollo. ✅
+- **Auth real con email y contraseña** (extensión de H1): módulo `src/domain/auth/`, `firebaseAuthRepository`, hook `useAuth`, `LoginScreen`, navegación enruta por estado de auth. 13 tests del auth. ✅
 
 ### Pendiente de definir (no inventar)
 
-- **Auth real**: `signInDevAnonymously` es provisional. Decidir proveedor y flujo (email/password, Google Sign-In, Apple Sign-In, magic link).
+- **Google Sign-In**: queda pendiente hasta que salgamos de Expo Go. Requiere build nativo (EAS Build + `@react-native-google-signin/google-signin` o `expo-auth-session`). En el `firebaseAuthRepository` ya está el método `signInWithGoogle` declarado (lanzando error claro) para que cuando se implemente solo cambie la implementación.
+- **Apple Sign-In**: mismo caso que Google, solo iOS. Pendiente.
 - **Política de edición del perfil después del onboarding** (libre, o campos congelados).
 - **Modelo de plan**: entidades `Plan`, `Session`, etc. y reglas del motor.
 - **Capa de IA**: cliente LLM, prompts, herramientas.
 - **Estructura de `src/` para plan e historial** (similar a `src/domain/profile/`).
 - **Tests de UI**: con `@testing-library/react-native` + jsdom.
+- **Migración de cuentas**: si en el futuro un usuario quiere cambiar de email, hay que decidir el flujo (¿vincular? ¿re-crear cuenta?).
 
 ## Arquitectura conceptual obligatoria
 
