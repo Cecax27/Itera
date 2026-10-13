@@ -76,17 +76,19 @@ El objetivo central: **"Entrena con un propósito. Entiende tu progreso. Siempre
 - **H0** (Bootstrap y andamiaje técnico): estructura de tres capas, navegación mínima, smoke test de Firebase, emulador opcional, Vitest configurado. ✅
 - **H1** (Perfil y objetivos deportivos): modelo de dominio con validadores (18 tests), repositorio de Firestore, hook `useProfile`, onboarding de 8 pasos, reglas de seguridad, sign-in anónimo provisional para desarrollo. ✅
 - **Auth real con email y contraseña** (extensión de H1): módulo `src/domain/auth/`, `firebaseAuthRepository`, hook `useAuth`, `LoginScreen`, navegación enruta por estado de auth. 13 tests del auth. ✅
+- **H2** (Plan semanal): dominio `src/domain/planning/` con tipos y motor puro (18 tests), `firestorePlanRepository` en `users/{uid}/plans/current`, `usePlan` hook, `PlanScreen` con bottom-tabs, generación automática al terminar el onboarding. ✅
 
 ### Pendiente de definir (no inventar)
 
 - **Google Sign-In**: queda pendiente hasta que salgamos de Expo Go. Requiere build nativo (EAS Build + `@react-native-google-signin/google-signin` o `expo-auth-session`). En el `firebaseAuthRepository` ya está el método `signInWithGoogle` declarado (lanzando error claro) para que cuando se implemente solo cambie la implementación.
 - **Apple Sign-In**: mismo caso que Google, solo iOS. Pendiente.
 - **Política de edición del perfil después del onboarding** (libre, o campos congelados).
-- **Modelo de plan**: entidades `Plan`, `Session`, etc. y reglas del motor.
+- **Reglas de progresión reales** (subida de peso, aumento de km, periodización). El motor de H2 es una primera versión; en hitos siguientes o vía IA (H7) se afinan.
 - **Capa de IA**: cliente LLM, prompts, herramientas.
-- **Estructura de `src/` para plan e historial** (similar a `src/domain/profile/`).
 - **Tests de UI**: con `@testing-library/react-native` + jsdom.
 - **Migración de cuentas**: si en el futuro un usuario quiere cambiar de email, hay que decidir el flujo (¿vincular? ¿re-crear cuenta?).
+- **Plan editable**: la pantalla de plan es solo lectura. La edición manual (cambiar sesiones de día, añadir/quitar) llega en un hito posterior.
+- **Manejo de fallos del motor**: si el motor no puede asignar respetando restricciones, hoy recorta strength. Idealmente registramos warnings o ajustamos el número de sesiones.
 
 ## Arquitectura conceptual obligatoria
 
