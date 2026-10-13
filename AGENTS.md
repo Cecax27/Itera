@@ -18,19 +18,20 @@ El objetivo central: **"Entrena con un propósito. Entiende tu progreso. Siempre
 
 - **Plataforma objetivo**: Android. No hay versión web por ahora.
 - **Framework de la app móvil**: **React Native con Expo**.
+- **Versión de Expo SDK**: **53**.
+- **Cliente Firebase en React Native**: **Firebase JS SDK oficial** (válido para Expo Go).
 - **Backend / persistencia / auth**: **Firebase** (Firestore como base de datos y Authentication para identidad).
+- **Estructura del proyecto**: archivos en la **raíz del repo**. No es monorepo.
 - **Idioma de documentación, código y mensajes de UI**: español.
 - **Identidad visual**: sigue el sistema definido en la skill `visual-identity` y la wiki.
 
 ### Pendiente de definir (no inventar)
 
-- **Versión del SDK de Expo** a usar.
-- **Cliente Firebase en React Native**: hay dos opciones reales y cambia cómo se desarrolla (Expo Go vs EAS Build). Decidir antes de empezar:
-  - **Firebase JS SDK oficial** — funciona en Expo Go, rápido de levantar, menos integraciones nativas.
-  - **@react-native-firebase** — más completo y recomendado para producción, pero **requiere EAS Build** (no funciona en Expo Go).
-- **Estructura de carpetas** del proyecto (raíz vs. monorepo con `apps/mobile/`).
-- **Gestión de configuración sensible** (claves de Firebase): `.env` + `expo-public`, archivo `google-services.json`, qué se commitea y qué no.
-- **Reemplazo del `.gitignore`** actual (es una plantilla Java que no aplica).
+- **Gestión de configuración sensible**: claves de Firebase, `google-services.json`, qué va a `.env` y qué no. Defaults razonables mientras tanto:
+  - `google-services.json` siempre fuera del repo.
+  - Claves públicas de Firebase en `.env` con prefijo `EXPO_PUBLIC_` (Expo las expone al bundle del cliente).
+  - `.env.example` sí se commitea como plantilla.
+- **Inicialización del proyecto Expo** (`expo init` vs. plantilla manual).
 
 ## Arquitectura conceptual obligatoria
 

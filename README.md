@@ -131,8 +131,10 @@ Con un solo usuario no se demuestra que funcione para todo el mercado, pero sí 
 ## Stack técnico
 
 - **Plataforma**: Android. No hay versión web por ahora.
-- **Framework móvil**: React Native con Expo.
+- **Framework móvil**: React Native con Expo (SDK 53).
+- **Cliente Firebase**: Firebase JS SDK oficial (compatible con Expo Go).
 - **Backend y persistencia**: Firebase (Firestore como base de datos, Authentication para identidad).
+- **Estructura del proyecto**: archivos en la raíz del repo. No es monorepo.
 - **Idioma**: documentación, código y mensajes de UI en español.
 - **Identidad visual**: definida en la [wiki del proyecto](https://github.com/Cecax27/Itera/wiki/Identidad-visual).
 
@@ -140,8 +142,8 @@ Con un solo usuario no se demuestra que funcione para todo el mercado, pero sí 
 
 ## Estado del proyecto
 
-Repositorio recién inicializado. Contiene la documentación base del producto (`README.md` y `AGENTS.md`), la skill de OpenCode para identidad visual (`.opencode/skills/visual-identity`) y, desde octubre de 2026, el código inicial de la app Android con React Native + Expo.
+Repositorio recién inicializado. Contiene la documentación base del producto (`README.md` y `AGENTS.md`), la skill de OpenCode para identidad visual (`.opencode/skills/visual-identity`) y, desde octubre de 2026, el código inicial de la app Android con React Native + Expo (SDK 53).
 
-Detalles del stack pendientes de cerrar (versión de SDK de Expo, cliente Firebase concreto, estructura de carpetas) están listados en [`AGENTS.md`](./AGENTS.md) bajo "Pendiente de definir".
+Detalles pendientes (gestión de configuración sensible, método de creación del proyecto Expo) están listados en [`AGENTS.md`](./AGENTS.md) bajo "Pendiente de definir".
 
 Consulta [`AGENTS.md`](./AGENTS.md) para las guías de trabajo específicas para agentes que desarrollen en este repo.
