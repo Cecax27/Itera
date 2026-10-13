@@ -23,3 +23,13 @@ export {
   assignSessionsToDays,
   mondayOf,
 } from './generator';
+
+export {
+  weekDayOf,
+  getSessionsForDay,
+  getTodaySessions,
+  getNextSession,
+  computeWeekProgress,
+} from './today';
+
+export type { WeekProgress } from './today';
