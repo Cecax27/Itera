@@ -1,0 +1,8 @@
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "projects": {
+    "default": "itera-4f63c"
+  }
+}

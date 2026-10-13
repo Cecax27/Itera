@@ -4,9 +4,7 @@
 // 'firebase/firestore' ni de 'firebase/auth'. Debe usar estos getters:
 //   - getAuthInstance()
 //   - getDbInstance()
-//
-// Esto mantiene el principio de arquitectura: si mañana cambiamos el
-// proveedor de backend, solo tocamos este módulo.
+//   - signInDevAnonymously()
 
 import { FirebaseApp, getApps, initializeApp } from 'firebase/app';
 import {
@@ -14,11 +12,16 @@ import {
   connectAuthEmulator,
   getAuth,
   initializeAuth,
-  Persistence,
   signInAnonymously,
 } from 'firebase/auth';
 import { connectFirestoreEmulator, Firestore, getFirestore } from 'firebase/firestore';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createAsyncStorage } from '@react-native-async-storage/async-storage';
+// getReactNativePersistence solo existe en la build RN de @firebase/auth.
+// Firebase 13 lo selecciona automáticamente cuando el bundler aplica la
+// condición 'react-native' (vía exports). El import desde 'firebase/auth'
+// resuelve al módulo correcto en build RN y a undefined en build web.
+// @ts-expect-error: en build web no existe, en build RN sí.
+import { getReactNativePersistence } from 'firebase/auth';
 
 import { firebaseConfig } from './config';
 
@@ -41,53 +44,24 @@ function getApp(): FirebaseApp {
   return app;
 }
 
-// Adaptador mínimo de AsyncStorage a la interfaz Persistence que espera
-// Firebase Auth. Implementa solo los métodos públicos del contrato.
-// Referencias:
-//   - https://firebase.google.com/docs/auth/web/auth-state-persistence
-//   - firebase/auth/src/core/persistence/Persistence.ts (interfaz interna)
-class ReactNativeAsyncStoragePersistence implements Persistence {
-  type: 'LOCAL' = 'LOCAL';
-
-  async get(key: string): Promise<string | null> {
-    return AsyncStorage.getItem(key);
-  }
-
-  async set(key: string, value: string): Promise<void> {
-    await AsyncStorage.setItem(key, value);
-  }
-
-  async remove(key: string): Promise<void> {
-    await AsyncStorage.removeItem(key);
-  }
-
-  // Firebase llama a esta función al arrancar para decidir si la persistencia
-  // es aplicable. En RN siempre devolvemos true (AsyncStorage siempre está).
-  shouldListen(): boolean {
-    return true;
-  }
-
-  // No usamos reactividad basada en eventos de almacenamiento.
-  addListener(): void {
-    // no-op
-  }
-
-  removeListener(): void {
-    // no-op
-  }
-}
-
 export function getAuthInstance(): Auth {
   if (!auth) {
     const a = getApp();
     try {
+      // Persistencia correcta para Firebase 13 + AsyncStorage 3:
+      //   - createAsyncStorage(namespace) crea un adaptador compatible.
+      //   - getReactNativePersistence(storage) lo envuelve para Auth.
+      // Esta es la receta oficial; las versiones anteriores de AsyncStorage
+      // pasaban el módulo directamente y ya no funciona.
+      const storage = createAsyncStorage('itera-auth');
       auth = initializeAuth(a, {
-        persistence: new ReactNativeAsyncStoragePersistence(),
+        persistence: getReactNativePersistence(storage),
       });
     } catch {
-      // Si initializeAuth falla (por ejemplo en reload de Fast Refresh),
-      // recurrimos a getAuth sin persistencia explícita. Firebase usará
-      // localStorage, que en RN no funciona fuera del bundle web. La
+      // Si initializeAuth falla (por ejemplo en reload de Fast Refresh o
+      // porque getReactNativePersistence no está disponible en el bundler
+      // actual), recurrimos a getAuth sin persistencia explícita. Firebase
+      // usará localStorage, que en RN no funciona fuera del bundle web. La
       // sesión no persistirá entre cierres de app; es un fallback, no el
       // comportamiento deseado.
       auth = getAuth(a);
