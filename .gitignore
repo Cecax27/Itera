@@ -92,3 +92,9 @@ coverage/
 # Misc
 *.tsbuildinfo
 .history/
+
+# Archivos de skills/habilidades de OpenCode a nivel proyecto.
+# Vivir bajo .agents/ o skills-lock.json son metadatos del editor; no
+# pertenecen al código del producto.
+.agents/
+skills-lock.json

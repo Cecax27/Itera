@@ -12,7 +12,6 @@ import {
   connectAuthEmulator,
   getAuth,
   initializeAuth,
-  signInAnonymously,
 } from 'firebase/auth';
 import { connectFirestoreEmulator, Firestore, getFirestore } from 'firebase/firestore';
 import { createAsyncStorage } from '@react-native-async-storage/async-storage';
@@ -87,19 +86,4 @@ export function getDbInstance(): Firestore {
     }
   }
   return db;
-}
-
-/**
- * Inicia sesión anónimamente en Firebase Auth.
- *
- * Solo para uso en desarrollo mientras no hay flujo de login real (H1 termina
- * sin auth UI; la pantalla de onboarding se completa sin pedir credenciales).
- * En producción este método no debe existir o debe estar protegido.
- *
- * La función es idempotente: si ya hay sesión, no hace nada.
- */
-export async function signInDevAnonymously(): Promise<void> {
-  const a = getAuthInstance();
-  if (a.currentUser) return;
-  await signInAnonymously(a);
 }

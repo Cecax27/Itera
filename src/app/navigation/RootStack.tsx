@@ -1,10 +1,10 @@
 // Stack de navegación raíz.
 //
-// Decide qué pantalla mostrar según el estado del perfil:
-// - loading: muestra un spinner.
-// - sin perfil: muestra Onboarding.
-// - con perfil: muestra Today.
-// - En cualquier momento se puede navegar a Settings (manualmente).
+// Decide qué pantalla mostrar según el estado global:
+// - loading (auth inicial): spinner.
+// - sin sesión: LoginScreen.
+// - con sesión pero sin perfil: Onboarding.
+// - con sesión y perfil: stack principal (Hoy, Ajustes).
 //
 // En H3 se sustituirá por la navegación real con tabs (Hoy, Plan, Progreso).
 
@@ -12,7 +12,8 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
-import { useProfile } from '@/app/hooks';
+import { useAuth, useProfile } from '@/app/hooks';
+import { LoginScreen } from '@/app/screens/LoginScreen';
 import { OnboardingScreen } from '@/app/screens/OnboardingScreen';
 import { TodayScreen } from '@/app/screens/TodayScreen';
 import { SettingsScreen } from '@/app/screens/SettingsScreen';
@@ -25,16 +26,19 @@ export type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function RootStack() {
-  const { status, profile, save } = useProfile();
+  const { status: authStatus } = useAuth();
+  const { status: profileStatus, profile, save } = useProfile();
 
   let content: React.ReactNode;
-  if (status === 'loading' || status === 'unauthenticated') {
+  if (authStatus === 'loading' || profileStatus === 'loading') {
     content = (
       <View style={styles.center}>
         <ActivityIndicator color="#C8F169" />
         <Text style={styles.muted}>Cargando…</Text>
       </View>
     );
+  } else if (authStatus === 'unauthenticated') {
+    content = <LoginScreen />;
   } else if (!profile) {
     content = <OnboardingScreen onComplete={(p) => save(p)} />;
   } else {
@@ -42,8 +46,8 @@ export function RootStack() {
       <Stack.Navigator
         initialRouteName="Today"
         screenOptions={{
-          headerStyle: { backgroundColor: '#F7F7F2' }, // Canvas
-          headerTintColor: '#20231F', // Ink
+          headerStyle: { backgroundColor: '#F7F7F2' },
+          headerTintColor: '#20231F',
           headerTitleStyle: { fontWeight: '600' },
         }}
       >
