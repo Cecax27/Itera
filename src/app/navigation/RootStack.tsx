@@ -89,14 +89,15 @@ function MainTabs({ plan }: { plan: Plan | null }) {
     >
       <Tabs.Screen
         name="Hoy"
-        component={TodayScreen}
         options={{
           title: 'Hoy',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="today-outline" color={color} size={size} />
           ),
         }}
-      />
+      >
+        {() => <TodayScreen plan={plan} />}
+      </Tabs.Screen>
       <Tabs.Screen name="Plan" options={{
         title: 'Plan',
         tabBarIcon: ({ color, size }) => (

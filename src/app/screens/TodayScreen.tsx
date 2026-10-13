@@ -14,7 +14,6 @@
 import { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { usePlan } from '@/app/hooks';
 import {
   Plan,
   RunSession,
@@ -37,8 +36,11 @@ const DAY_LABELS: Record<WeekDay, string> = {
   sun: 'Domingo',
 };
 
-export function TodayScreen() {
-  const { plan } = usePlan();
+export interface TodayScreenProps {
+  plan: Plan | null;
+}
+
+export function TodayScreen({ plan }: TodayScreenProps) {
   const todayIso = useMemo(() => new Date().toISOString(), []);
   const day = plan ? weekDayOf(todayIso) : 'mon';
   const todayLabel = plan ? DAY_LABELS[day] : 'Hoy';
