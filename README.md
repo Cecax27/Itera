@@ -131,19 +131,81 @@ Con un solo usuario no se demuestra que funcione para todo el mercado, pero sí 
 ## Stack técnico
 
 - **Plataforma**: Android. No hay versión web por ahora.
-- **Framework móvil**: React Native con Expo (SDK 53).
-- **Cliente Firebase**: Firebase JS SDK oficial (compatible con Expo Go).
+- **Framework móvil**: React Native con Expo (SDK 57, React 19.2, React Native 0.86).
+- **Cliente Firebase**: Firebase JS SDK oficial v13 (compatible con Expo Go).
 - **Backend y persistencia**: Firebase (Firestore como base de datos, Authentication para identidad).
 - **Estructura del proyecto**: archivos en la raíz del repo. No es monorepo.
+- **applicationId Android**: `com.bitabit.itera`.
+- **Lenguaje**: TypeScript con `strict: true`.
+- **Path alias**: `@/*` apunta a `src/*`.
 - **Idioma**: documentación, código y mensajes de UI en español.
 - **Identidad visual**: definida en la [wiki del proyecto](https://github.com/Cecax27/Itera/wiki/Identidad-visual).
+
+### Estructura
+
+Tres capas:
+
+- **`src/app/`** — UI, navegación, pantallas, hooks de UI.
+- **`src/domain/`** — lógica de negocio pura (TypeScript, sin Firebase ni React).
+- **`src/infrastructure/`** — adaptadores a Firebase, futuro LLM, etc. Único punto de la app que importa de `firebase/*`.
+
+```
+.
+├── app.json                  # Expo: nombre, slug, scheme, iconos, paquete Android
+├── index.ts                  # Entry point
+├── package.json              # Scripts: start, ios, android, web, typecheck, test, emulator
+├── tsconfig.json             # TS estricto, path alias @/* → src/*
+├── vitest.config.mts         # Vitest: node por defecto, jsdom opt-in
+├── vitest.setup.mts          # Setup global de tests
+├── .env.example              # Plantilla pública de variables Firebase
+├── assets/                   # Iconos y splash por defecto
+└── src/
+    ├── App.tsx               # Raízona: SafeAreaProvider + RootStack
+    ├── app/                  # UI
+    │   ├── README.md
+    │   ├── components/       # Componentes reutilizables
+    │   ├── navigation/       # Stacks, tabs, drawers
+    │   │   └── RootStack.tsx
+    │   └── screens/
+    │       ├── TodayScreen.tsx     # Smoke test de Firebase (H0)
+    │       └── SettingsScreen.tsx
+    ├── domain/               # Lógica pura
+    │   ├── README.md
+    │   └── example.test.ts   # Test placeholder
+    └── infrastructure/
+        └── firebase/         # Único punto que importa de 'firebase/*'
+            ├── config.ts     # Lee EXPO_PUBLIC_* y valida
+            ├── client.ts     # Singleton + conectores de emulador
+            └── index.ts      # Re-exports públicos
+```
+
+### Tests
+
+```bash
+npm test            # ejecuta una vez
+npm run test:watch  # modo watch
+```
+
+Vitest corre en entorno `node` por defecto para tests de `src/domain/`. Los tests de UI marcan `// @vitest-environment jsdom` al inicio.
+
+### Emulador Firebase (opcional)
+
+Si prefieres no tocar el proyecto `itera-4f63c` durante el desarrollo:
+
+1. Instala Firebase CLI: `npm install -g firebase-tools`.
+2. Crea un archivo `firebase.json` (cuando llegue el momento).
+3. Ejecuta `npm run emulator` en una terminal.
+4. En tu `.env`, pon `EXPO_PUBLIC_USE_FIREBASE_EMULATOR=true`.
+5. Arranca la app con `npm start`. La app se conectará a `127.0.0.1` en lugar del proyecto real.
 
 ---
 
 ## Estado del proyecto
 
-Repositorio recién inicializado. Contiene la documentación base del producto (`README.md` y `AGENTS.md`), la skill de OpenCode para identidad visual (`.opencode/skills/visual-identity`) y, desde octubre de 2026, el código inicial de la app Android con React Native + Expo (SDK 53).
+Repositorio recién inicializado. Contiene la documentación base (`README.md`, `AGENTS.md`), la skill de OpenCode para identidad visual y, desde octubre de 2026, el código inicial de la app Android con React Native + Expo (SDK 57).
 
-Detalles pendientes (gestión de configuración sensible, método de creación del proyecto Expo) están listados en [`AGENTS.md`](./AGENTS.md) bajo "Pendiente de definir".
+**H0 (Bootstrap) cerrado**: tres capas, navegación mínima con `@react-navigation/native`, módulo Firebase con emulador opcional, Vitest configurado.
+
+Pendientes inmediatos: H1 (perfil y objetivos), reglas de seguridad de Firestore, modelo de datos de dominio. Ver [`AGENTS.md`](./AGENTS.md) bajo "Pendiente de definir".
 
 Consulta [`AGENTS.md`](./AGENTS.md) para las guías de trabajo específicas para agentes que desarrollen en este repo.

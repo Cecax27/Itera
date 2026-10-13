@@ -9,8 +9,8 @@
 // proveedor de backend, solo tocamos este módulo.
 
 import { FirebaseApp, getApps, initializeApp } from 'firebase/app';
-import { Auth, getAuth, initializeAuth, Persistence } from 'firebase/auth';
-import { Firestore, getFirestore } from 'firebase/firestore';
+import { Auth, connectAuthEmulator, getAuth, initializeAuth, Persistence } from 'firebase/auth';
+import { connectFirestoreEmulator, Firestore, getFirestore } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { firebaseConfig } from './config';
@@ -18,6 +18,13 @@ import { firebaseConfig } from './config';
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
+
+// Si EXPO_PUBLIC_USE_FIREBASE_EMULATOR es 'true', los singletons se conectan
+// a los emuladores locales en lugar del proyecto real.
+const USE_EMULATOR = process.env.EXPO_PUBLIC_USE_FIREBASE_EMULATOR === 'true';
+const EMULATOR_HOST = process.env.EXPO_PUBLIC_FIREBASE_EMULATOR_HOST ?? '127.0.0.1';
+const AUTH_EMULATOR_PORT = Number(process.env.EXPO_PUBLIC_FIREBASE_AUTH_EMULATOR_PORT ?? 9099);
+const FIRESTORE_EMULATOR_PORT = Number(process.env.EXPO_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_PORT ?? 8080);
 
 function getApp(): FirebaseApp {
   if (!app) {
@@ -78,6 +85,14 @@ export function getAuthInstance(): Auth {
       // comportamiento deseado.
       auth = getAuth(a);
     }
+
+    if (USE_EMULATOR) {
+      // Conectar al emulador de Auth solo después de inicializar para
+      // evitar dobles conexiones tras Fast Refresh.
+      connectAuthEmulator(auth, `http://${EMULATOR_HOST}:${AUTH_EMULATOR_PORT}`, {
+        disableWarnings: true,
+      });
+    }
   }
   return auth;
 }
@@ -85,6 +100,10 @@ export function getAuthInstance(): Auth {
 export function getDbInstance(): Firestore {
   if (!db) {
     db = getFirestore(getApp());
+
+    if (USE_EMULATOR) {
+      connectFirestoreEmulator(db, EMULATOR_HOST, FIRESTORE_EMULATOR_PORT);
+    }
   }
   return db;
 }

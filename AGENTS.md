@@ -18,20 +18,71 @@ El objetivo central: **"Entrena con un propósito. Entiende tu progreso. Siempre
 
 - **Plataforma objetivo**: Android. No hay versión web por ahora.
 - **Framework de la app móvil**: **React Native con Expo**.
-- **Versión de Expo SDK**: **53**.
+- **Versión de Expo SDK**: **57** (la 53 quedó descartada al ejecutar `create-expo-app@latest`, que instaló la más reciente).
 - **Cliente Firebase en React Native**: **Firebase JS SDK oficial** (válido para Expo Go).
 - **Backend / persistencia / auth**: **Firebase** (Firestore como base de datos y Authentication para identidad).
 - **Estructura del proyecto**: archivos en la **raíz del repo**. No es monorepo.
+- **applicationId Android**: `com.bitabit.itera`.
 - **Idioma de documentación, código y mensajes de UI**: español.
 - **Identidad visual**: sigue el sistema definido en la skill `visual-identity` y la wiki.
 
+### Estructura del código
+
+```
+.
+├── app.json                  # Configuración Expo (nombre, slug, scheme, iconos, paquete Android)
+├── index.ts                  # Punto de entrada: registra src/App como componente raíz
+├── package.json              # Dependencias y scripts (start, ios, android, typecheck, test, emulator)
+├── tsconfig.json             # Extiende expo/tsconfig.base con strict + path alias @/* → src/*
+├── vitest.config.mts         # Config de Vitest (node por defecto, jsdom opt-in para UI)
+├── vitest.setup.mts          # Setup global de tests (vacío salvo stubs necesarios)
+├── .env.example              # Variables públicas EXPO_PUBLIC_FIREBASE_* (plantilla, sí se commitea)
+├── assets/                   # Iconos y splash por defecto
+└── src/
+    ├── App.tsx               # Componente raíz: monta SafeAreaProvider + RootStack
+    ├── app/                  # Capa de UI (ver src/app/README.md)
+    │   ├── README.md         # Reglas de la capa app
+    │   ├── components/       # Componentes reutilizables (vacío por ahora)
+    │   ├── navigation/       # Stacks, tabs, drawers, tipos de navegación
+    │   │   └── RootStack.tsx # Stack raíz con dos pantallas (Hoy, Ajustes)
+    │   └── screens/          # Pantallas
+    │       ├── TodayScreen.tsx     # Smoke test de Firebase (H0)
+    │       └── SettingsScreen.tsx  # Placeholder (H1)
+    ├── domain/               # Lógica de negocio pura, sin React ni Firebase (ver src/domain/README.md)
+    │   ├── README.md         # Reglas de la capa domain
+    │   └── example.test.ts   # Test placeholder para validar Vitest
+    └── infrastructure/       # Aísla dependencias externas del dominio
+        └── firebase/         # Único punto de la app que importa 'firebase/*'
+            ├── config.ts     # Lee EXPO_PUBLIC_* y asegura que están todas
+            ├── client.ts     # Singleton Firebase + conectores de emulador (Auth, Firestore)
+            └── index.ts      # Re-exports públicos del módulo
+```
+
+### Principios de arquitectura ya implementados
+
+- **Tres capas aisladas**: `src/app/` (UI), `src/domain/` (lógica pura), `src/infrastructure/` (Firebase, futuro LLM). La regla:
+  - `domain/` no importa de `app`, `infrastructure`, React Native, Expo ni Firebase. TypeScript puro.
+  - `app/` no importa de `firebase/*` directamente. Pasa por `infrastructure/`.
+  - `infrastructure/` aísla el SDK concreto del resto del código.
+- **Variables de entorno públicas con prefijo `EXPO_PUBLIC_`**: las claves de Firebase son identificadores públicos (no secretos), así que pueden vivir en el bundle del cliente. `.env` está ignorado por `.gitignore`.
+- **Path alias `@/*` → `src/*`**: activado para imports limpios. Usar `@/infrastructure/firebase` en vez de rutas relativas largas.
+- **TypeScript estricto** en todo el código (`strict: true` en `tsconfig.json`).
+- **Emulador Firebase opcional**: con `EXPO_PUBLIC_USE_FIREBASE_EMULATOR=true` y `npm run emulator`, la app se conecta a los emuladores locales de Auth/Firestore. Por defecto está desactivado (apunta a `itera-4f63c`).
+- **Tests con Vitest**: entorno `node` por defecto para dominio, `jsdom` opt-in para UI. Comandos `npm test` y `npm run test:watch`.
+- **Navegación con `@react-navigation/native`**: stack mínimo Hoy/Ajustes en H0, se sustituye en H3.
+
+### Hitos completados
+
+- **H0** (Bootstrap y andamiaje técnico): estructura de tres capas, navegación mínima, smoke test de Firebase, emulador opcional, Vitest configurado. ✅
+
 ### Pendiente de definir (no inventar)
 
-- **Gestión de configuración sensible**: claves de Firebase, `google-services.json`, qué va a `.env` y qué no. Defaults razonables mientras tanto:
-  - `google-services.json` siempre fuera del repo.
-  - Claves públicas de Firebase en `.env` con prefijo `EXPO_PUBLIC_` (Expo las expone al bundle del cliente).
-  - `.env.example` sí se commitea como plantilla.
-- **Inicialización del proyecto Expo** (`expo init` vs. plantilla manual).
+- **Reglas de seguridad de Firestore**: cómo limitar acceso por usuario, qué colecciones son privadas vs. compartidas.
+- **Modelo de datos de dominio**: entidades, agregados, validaciones. Vive en código, no en reglas de Firestore.
+- **Capa de IA**: cliente LLM, prompts, herramientas. Aún no creada.
+- **Motor de planificación**: reglas de progresión, validaciones, calendario. Aún no creado.
+- **Estructura de `src/`** para dominio (probablemente `src/domain/` y `src/app/` para separar lógica de UI).
+- **Tests**: framework, ubicación, cobertura mínima.
 
 ## Arquitectura conceptual obligatoria
 

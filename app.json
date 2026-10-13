@@ -21,11 +21,6 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       }
     },
-    "plugins": [
-      "expo-font"
-    ],
-    "experiments": {
-      "typedRoutes": true
-    }
+    "plugins": []
   }
 }
