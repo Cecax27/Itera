@@ -7,7 +7,14 @@
 // - con sesión y perfil: stack principal con tabs (Hoy, Plan, Ajustes).
 //
 // En H3 este stack se sustituye por tabs con @react-navigation/bottom-tabs.
+//
+// Detalle importante: usePlan() debe estar en una sola instancia para
+// que la generación del plan en el onboarding sea visible desde la
+// pestaña Plan. Por eso, en lugar de llamar UsePlan() dentro de
+// PlanTabContent (que sería una segunda instancia), lo llamamos aquí
+// y pasamos el plan como prop a la pantalla.
 
+import { Ionicons } from '@expo/vector-icons';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -20,6 +27,7 @@ import { PlanScreen } from '@/app/screens/PlanScreen';
 import { TodayScreen } from '@/app/screens/TodayScreen';
 import { SettingsScreen } from '@/app/screens/SettingsScreen';
 import { Profile } from '@/domain/profile';
+import { Plan } from '@/domain/planning';
 
 export type RootStackParamList = {
   Tabs: undefined;
@@ -54,21 +62,20 @@ export function RootStackComponent() {
       <OnboardingScreen
         onComplete={async (p: Profile) => {
           await save(p);
-          // El plan se generará en cuanto se monte el stack principal,
-          // porque usePlan ya tiene acceso al perfil actualizado.
-          // Forzamos aquí para que el usuario lo vea sin recargar.
+          // Generamos el plan aquí mismo para que el usuario lo vea
+          // sin tener que esperar a usePlan a recargarlo.
           await generateFromProfile(p);
         }}
       />
     );
   } else {
-    content = <MainTabs planExists={plan !== null} />;
+    content = <MainTabs plan={plan} />;
   }
 
   return <NavigationContainer>{content}</NavigationContainer>;
 }
 
-function MainTabs({ planExists }: { planExists: boolean }) {
+function MainTabs({ plan }: { plan: Plan | null }) {
   return (
     <Tabs.Navigator
       screenOptions={{
@@ -83,27 +90,36 @@ function MainTabs({ planExists }: { planExists: boolean }) {
       <Tabs.Screen
         name="Hoy"
         component={TodayScreen}
-        options={{ title: 'Hoy' }}
+        options={{
+          title: 'Hoy',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="today-outline" color={color} size={size} />
+          ),
+        }}
       />
-      <Tabs.Screen
-        name="Plan"
-        options={{ title: 'Plan' }}
-      >
-        {() => <PlanTabContent />}
+      <Tabs.Screen name="Plan" options={{
+        title: 'Plan',
+        tabBarIcon: ({ color, size }) => (
+          <Ionicons name="calendar-outline" color={color} size={size} />
+        ),
+      }}>
+        {() => <PlanScreen plan={plan} />}
       </Tabs.Screen>
       <Tabs.Screen
         name="Settings"
         component={SettingsScreen}
-        options={{ title: 'Ajustes' }}
+        options={{
+          title: 'Ajustes',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="settings-outline" color={color} size={size} />
+          ),
+        }}
       />
     </Tabs.Navigator>
   );
 }
 
-function PlanTabContent() {
-  const { plan } = usePlan();
-  return <PlanScreen plan={plan} />;
-}
+
 
 const styles = StyleSheet.create({
   center: {
@@ -119,7 +135,4 @@ const styles = StyleSheet.create({
   },
 });
 
-// Compatibilidad: RootStack ahora es el wrapper completo, no un screen.
-// Mantenemos un export con el nombre antiguo para no romper imports
-// externos que pueda haber.
 export { RootStackComponent as RootStack };
