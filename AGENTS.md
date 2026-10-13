@@ -74,15 +74,16 @@ El objetivo central: **"Entrena con un propósito. Entiende tu progreso. Siempre
 ### Hitos completados
 
 - **H0** (Bootstrap y andamiaje técnico): estructura de tres capas, navegación mínima, smoke test de Firebase, emulador opcional, Vitest configurado. ✅
+- **H1** (Perfil y objetivos deportivos): modelo de dominio con validadores (18 tests), repositorio de Firestore, hook `useProfile`, onboarding de 8 pasos, reglas de seguridad, sign-in anónimo provisional para desarrollo. ✅
 
 ### Pendiente de definir (no inventar)
 
-- **Reglas de seguridad de Firestore**: cómo limitar acceso por usuario, qué colecciones son privadas vs. compartidas.
-- **Modelo de datos de dominio**: entidades, agregados, validaciones. Vive en código, no en reglas de Firestore.
-- **Capa de IA**: cliente LLM, prompts, herramientas. Aún no creada.
-- **Motor de planificación**: reglas de progresión, validaciones, calendario. Aún no creado.
-- **Estructura de `src/`** para dominio (probablemente `src/domain/` y `src/app/` para separar lógica de UI).
-- **Tests**: framework, ubicación, cobertura mínima.
+- **Auth real**: `signInDevAnonymously` es provisional. Decidir proveedor y flujo (email/password, Google Sign-In, Apple Sign-In, magic link).
+- **Política de edición del perfil después del onboarding** (libre, o campos congelados).
+- **Modelo de plan**: entidades `Plan`, `Session`, etc. y reglas del motor.
+- **Capa de IA**: cliente LLM, prompts, herramientas.
+- **Estructura de `src/` para plan e historial** (similar a `src/domain/profile/`).
+- **Tests de UI**: con `@testing-library/react-native` + jsdom.
 
 ## Arquitectura conceptual obligatoria
 

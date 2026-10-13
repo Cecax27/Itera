@@ -1,12 +1,19 @@
-// Stack de navegación raíz. Mientras no haya flujo real, expone dos
-// pantallas (Hoy y Ajustes) para validar que la navegación funciona.
+// Stack de navegación raíz.
 //
-// En H3 se sustituirá por la navegación real con tabs (Hoy, Plan, Progreso)
-// y un menú secundario.
+// Decide qué pantalla mostrar según el estado del perfil:
+// - loading: muestra un spinner.
+// - sin perfil: muestra Onboarding.
+// - con perfil: muestra Today.
+// - En cualquier momento se puede navegar a Settings (manualmente).
+//
+// En H3 se sustituirá por la navegación real con tabs (Hoy, Plan, Progreso).
 
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
+import { useProfile } from '@/app/hooks';
+import { OnboardingScreen } from '@/app/screens/OnboardingScreen';
 import { TodayScreen } from '@/app/screens/TodayScreen';
 import { SettingsScreen } from '@/app/screens/SettingsScreen';
 
@@ -18,8 +25,20 @@ export type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function RootStack() {
-  return (
-    <NavigationContainer>
+  const { status, profile, save } = useProfile();
+
+  let content: React.ReactNode;
+  if (status === 'loading' || status === 'unauthenticated') {
+    content = (
+      <View style={styles.center}>
+        <ActivityIndicator color="#C8F169" />
+        <Text style={styles.muted}>Cargando…</Text>
+      </View>
+    );
+  } else if (!profile) {
+    content = <OnboardingScreen onComplete={(p) => save(p)} />;
+  } else {
+    content = (
       <Stack.Navigator
         initialRouteName="Today"
         screenOptions={{
@@ -39,6 +58,22 @@ export function RootStack() {
           options={{ title: 'Ajustes' }}
         />
       </Stack.Navigator>
-    </NavigationContainer>
-  );
+    );
+  }
+
+  return <NavigationContainer>{content}</NavigationContainer>;
 }
+
+const styles = StyleSheet.create({
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F7F7F2',
+    gap: 8,
+  },
+  muted: {
+    color: '#20231F',
+    opacity: 0.6,
+  },
+});

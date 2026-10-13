@@ -1,0 +1,1 @@
+export { firestoreProfileRepository } from './profileRepository';

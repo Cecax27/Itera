@@ -1,0 +1,26 @@
+rules_version = '2';
+
+// Reglas de seguridad de Firestore para Itera (MVP).
+//
+// Filosofía: cada usuario solo accede a sus propios datos. Los documentos
+// viven bajo `users/{userId}/...` para que esta regla sea una sola.
+//
+// El MVP es de un solo usuario (el desarrollador). Cuando se abra a más
+// personas, esta regla no necesita cambiar: sigue aplicando la misma
+// propiedad (solo el dueño accede a su subárbol).
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Cualquier usuario autenticado puede leer/escribir solo bajo su propio
+    // userId. Ningún cross-user access.
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Bloqueo por defecto: cualquier otra ruta está denegada.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
