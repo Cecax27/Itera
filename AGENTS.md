@@ -77,6 +77,7 @@ El objetivo central: **"Entrena con un propósito. Entiende tu progreso. Siempre
 - **H1** (Perfil y objetivos deportivos): modelo de dominio con validadores (18 tests), repositorio de Firestore, hook `useProfile`, onboarding de 8 pasos, reglas de seguridad, sign-in anónimo provisional para desarrollo. ✅
 - **Auth real con email y contraseña** (extensión de H1): módulo `src/domain/auth/`, `firebaseAuthRepository`, hook `useAuth`, `LoginScreen`, navegación enruta por estado de auth. 13 tests del auth. ✅
 - **H2** (Plan semanal): dominio `src/domain/planning/` con tipos y motor puro (18 tests), `firestorePlanRepository` en `users/{uid}/plans/current`, `usePlan` hook, `PlanScreen` con bottom-tabs, generación automática al terminar el onboarding. ✅
+- **H3** (Sesión del día, primera cara): `weekDayOf`, `getTodaySessions`, `getNextSession`, `computeWeekProgress` (10 tests); `TodayScreen` con encabezado + sesión + descanso, propósito visible bajo el título, botón Empezar como acción principal. ✅
 
 ### Pendiente de definir (no inventar)
 
