@@ -128,8 +128,20 @@ Con un solo usuario no se demuestra que funcione para todo el mercado, pero sí 
 
 ---
 
+## Stack técnico
+
+- **Plataforma**: Android. No hay versión web por ahora.
+- **Framework móvil**: React Native con Expo.
+- **Backend y persistencia**: Firebase (Firestore como base de datos, Authentication para identidad).
+- **Idioma**: documentación, código y mensajes de UI en español.
+- **Identidad visual**: definida en la [wiki del proyecto](https://github.com/Cecax27/Itera/wiki/Identidad-visual).
+
+---
+
 ## Estado del proyecto
 
-Repositorio recién inicializado. Por el momento contiene la documentación base del producto (`README.md` y `AGENTS.md`). El código, el stack tecnológico y la estructura de módulos se decidirán en las próximas iteraciones.
+Repositorio recién inicializado. Contiene la documentación base del producto (`README.md` y `AGENTS.md`), la skill de OpenCode para identidad visual (`.opencode/skills/visual-identity`) y, desde octubre de 2026, el código inicial de la app Android con React Native + Expo.
+
+Detalles del stack pendientes de cerrar (versión de SDK de Expo, cliente Firebase concreto, estructura de carpetas) están listados en [`AGENTS.md`](./AGENTS.md) bajo "Pendiente de definir".
 
 Consulta [`AGENTS.md`](./AGENTS.md) para las guías de trabajo específicas para agentes que desarrollen en este repo.
