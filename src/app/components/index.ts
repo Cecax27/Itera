@@ -8,3 +8,5 @@ export { Screen } from './Screen';
 export type { ScreenProps } from './Screen';
 export { TextField } from './TextField';
 export type { TextFieldProps } from './TextField';
+export { RecordedSessionCard } from './RecordedSessionCard';
+export type { RecordedSessionCardProps } from './RecordedSessionCard';

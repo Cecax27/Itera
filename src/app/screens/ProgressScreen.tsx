@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { useCallback, useMemo, useState, memo } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   ListRenderItemInfo,
   Pressable,
@@ -14,7 +15,6 @@ import {
 } from 'react-native';
 
 import { Card, Chip } from '@/app/components';
-import { useTrainingHistory } from '@/app/hooks';
 import { Plan, Session } from '@/domain/planning';
 import {
   computeWeeklyTrainingSummary,
@@ -38,19 +38,32 @@ const KM_FORMATTER = new Intl.NumberFormat('es-ES', { minimumFractionDigits: 1, 
 export interface ProgressScreenProps {
   plan: Plan | null;
   onOpenSettings: () => void;
+  sessions: readonly RecordedTrainingSession[];
+  loading: boolean;
+  error: string | null;
+  onRefresh: () => Promise<void>;
+  onDeleteSession: (sessionId: string) => Promise<void>;
 }
 
-export function ProgressScreen({ plan, onOpenSettings }: ProgressScreenProps) {
+export function ProgressScreen({
+  plan,
+  onOpenSettings,
+  sessions,
+  loading,
+  error,
+  onRefresh,
+  onDeleteSession,
+}: ProgressScreenProps) {
   const tokens = useThemeTokens();
   const styles = makeStyles(tokens);
-  const { sessions, loading, error, refresh } = useTrainingHistory();
   const [disciplineFilter, setDisciplineFilter] = useState<HistoryDisciplineFilter>('all');
   const [dateFilter, setDateFilter] = useState<HistoryDateFilter>('week');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const todayIso = new Date().toISOString().slice(0, 10);
 
   useFocusEffect(useCallback(() => {
-    void refresh();
-  }, [refresh]));
+    void onRefresh();
+  }, [onRefresh]));
 
   const summary = useMemo(
     () => computeWeeklyTrainingSummary(sessions, plan, todayIso),
@@ -60,9 +73,39 @@ export function ProgressScreen({ plan, onOpenSettings }: ProgressScreenProps) {
     () => filterTrainingHistory(sessions, disciplineFilter, dateFilter, todayIso),
     [dateFilter, disciplineFilter, sessions, todayIso],
   );
+  const hasFinalizedSession = sessions.some((record) =>
+    record.metadata.trainingProgress?.status !== 'active'
+    && record.metadata.trainingProgress?.status !== 'paused',
+  );
+  const deleteSession = useCallback(async (sessionId: string) => {
+    setDeletingId(sessionId);
+    try {
+      await onDeleteSession(sessionId);
+    } catch (err) {
+      Alert.alert('No se pudo eliminar', err instanceof Error ? err.message : 'Inténtalo de nuevo.');
+    } finally {
+      setDeletingId(null);
+    }
+  }, [onDeleteSession]);
+  const confirmDelete = useCallback((sessionId: string) => {
+    Alert.alert(
+      'Eliminar entrenamiento',
+      'Se borrarán sus resultados del historial. El plan semanal no cambiará.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Eliminar', style: 'destructive', onPress: () => void deleteSession(sessionId) },
+      ],
+    );
+  }, [deleteSession]);
   const renderItem = useCallback(
-    ({ item }: ListRenderItemInfo<RecordedTrainingSession>) => <SessionHistoryCard record={item} />,
-    [],
+    ({ item }: ListRenderItemInfo<RecordedTrainingSession>) => (
+      <SessionHistoryCard
+        record={item}
+        deleting={deletingId === item.metadata.id}
+        onDelete={() => confirmDelete(item.metadata.id)}
+      />
+    ),
+    [confirmDelete, deletingId],
   );
   const keyExtractor = useCallback((item: RecordedTrainingSession) => item.metadata.id, []);
   const hasSummaryData = sessions.length > 0 || (!loading && !error);
@@ -128,7 +171,7 @@ export function ProgressScreen({ plan, onOpenSettings }: ProgressScreenProps) {
   ) : error ? (
     <View style={styles.emptyState}>
       <Text style={styles.emptyTitle}>No pudimos cargar los entrenamientos.</Text>
-      <Pressable onPress={() => void refresh()} accessibilityRole="button" style={styles.retryButton}>
+      <Pressable onPress={() => void onRefresh()} accessibilityRole="button" style={styles.retryButton}>
         <Text style={styles.retryText}>Intentar de nuevo</Text>
       </Pressable>
     </View>
@@ -136,6 +179,11 @@ export function ProgressScreen({ plan, onOpenSettings }: ProgressScreenProps) {
     <View style={styles.emptyState}>
       <Text style={styles.emptyTitle}>Aún no hay entrenamientos registrados.</Text>
       <Text style={styles.emptyText}>Cuando guardes un resultado, aparecerá aquí.</Text>
+    </View>
+  ) : !hasFinalizedSession ? (
+    <View style={styles.emptyState}>
+      <Text style={styles.emptyTitle}>Tu sesión sigue en curso.</Text>
+      <Text style={styles.emptyText}>Aparecerá en el historial cuando la termines o la cierres como incompleta.</Text>
     </View>
   ) : (
     <View style={styles.emptyState}>
@@ -153,10 +201,11 @@ export function ProgressScreen({ plan, onOpenSettings }: ProgressScreenProps) {
       ListEmptyComponent={emptyContent}
       contentContainerStyle={styles.content}
       contentInsetAdjustmentBehavior="automatic"
-      refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void refresh()} tintColor={tokens.colors.ink} />}
+      refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void onRefresh()} tintColor={tokens.colors.ink} />}
       keyboardShouldPersistTaps="handled"
     />
   );
+
 }
 
 function MetricCard({ label, value, unit }: { label: string; value: string; unit?: string }) {
@@ -171,23 +220,37 @@ function MetricCard({ label, value, unit }: { label: string; value: string; unit
   );
 }
 
-const SessionHistoryCard = memo(function SessionHistoryCard({ record }: { record: RecordedTrainingSession }) {
+const SessionHistoryCard = memo(function SessionHistoryCard({
+  record,
+  deleting,
+  onDelete,
+}: {
+  record: RecordedTrainingSession;
+  deleting: boolean;
+  onDelete: () => void;
+}) {
   const tokens = useThemeTokens();
   const styles = makeStyles(tokens);
   const isRunning = record.metadata.discipline === 'running';
   const title = record.metadata.plannedSession
     ? sessionTitle(record.metadata.plannedSession)
     : isRunning ? 'Carrera libre' : 'Fuerza libre';
-  const volume = record.sets.reduce((sum, set) => sum + set.actualWeightKg * set.actualReps, 0);
-  const averageRpe = record.sets.length > 0
-    ? Math.round(record.sets.reduce((sum, set) => sum + set.rpe, 0) / record.sets.length)
+  const volume = record.sets.reduce((sum, set) => sum + (set.actualWeightKg ?? 0) * (set.actualReps ?? 0), 0);
+  const completedSets = record.sets.filter((set) => set.status !== 'skipped' && typeof set.actualReps === 'number');
+  const skippedSets = record.sets.filter((set) => set.status === 'skipped').length;
+  const averageRpe = completedSets.length > 0
+    ? Math.round(completedSets.reduce((sum, set) => sum + (typeof set.rpe === 'number' ? set.rpe : 0), 0) / completedSets.length)
     : null;
 
   return (
     <Card padding="md" accent={isRunning ? 'run' : 'lime'} style={styles.sessionCard}>
       <View style={styles.sessionHeader}>
         <Text style={styles.sessionDate}>{formatDate(record.metadata.date)}</Text>
-        <Text style={styles.sessionSource}>{record.metadata.source === 'free' ? 'LIBRE' : 'PLANIFICADA'}</Text>
+        <Text style={styles.sessionSource}>
+          {record.metadata.trainingProgress?.status === 'incomplete'
+            ? 'INCOMPLETA'
+            : record.metadata.source === 'free' ? 'LIBRE' : 'PLANIFICADA'}
+        </Text>
       </View>
       <Text style={styles.sessionTitle}>{title}</Text>
       {isRunning ? (
@@ -199,7 +262,8 @@ const SessionHistoryCard = memo(function SessionHistoryCard({ record }: { record
       ) : (
         <>
           <Text style={styles.sessionDetail}>
-            {record.sets.length} {record.sets.length === 1 ? 'serie' : 'series'} · {INTEGER_FORMATTER.format(volume)} kg·reps
+            {completedSets.length} {completedSets.length === 1 ? 'serie' : 'series'} · {INTEGER_FORMATTER.format(volume)} kg·reps
+            {skippedSets > 0 ? ` · ${skippedSets} omitidas` : ''}
             {averageRpe === null ? '' : ` · RPE medio ${averageRpe}`}
           </Text>
           <Text style={styles.exerciseNames} numberOfLines={2}>
@@ -207,6 +271,16 @@ const SessionHistoryCard = memo(function SessionHistoryCard({ record }: { record
           </Text>
         </>
       )}
+      <Pressable
+        onPress={onDelete}
+        disabled={deleting}
+        accessibilityRole="button"
+        accessibilityLabel="Eliminar entrenamiento registrado"
+        style={styles.deleteAction}
+      >
+        <Ionicons name="trash-outline" size={16} color={tokens.colors.ink} />
+        <Text style={styles.deleteText}>{deleting ? 'Eliminando…' : 'Eliminar registro'}</Text>
+      </Pressable>
     </Card>
   );
 });
@@ -251,6 +325,8 @@ function makeStyles(tokens: ReturnType<typeof useThemeTokens>) {
     resultsCount: { fontSize: tokens.fontSize.label, color: tokens.colors.textSecondary, marginTop: tokens.spacing.xs, marginBottom: tokens.spacing.sm },
     error: { fontSize: tokens.fontSize.label, color: tokens.colors.error, marginBottom: tokens.spacing.md },
     sessionCard: { marginBottom: tokens.spacing.md },
+    deleteAction: { minHeight: tokens.minTouch, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: tokens.spacing.xs, marginTop: tokens.spacing.sm },
+    deleteText: { color: tokens.colors.ink, fontSize: tokens.fontSize.caption, fontWeight: tokens.fontWeight.medium },
     sessionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: tokens.spacing.sm, marginBottom: tokens.spacing.xs },
     sessionDate: { color: tokens.colors.textSecondary, fontSize: tokens.fontSize.label, textTransform: 'capitalize' },
     sessionSource: { color: tokens.colors.textSecondary, fontSize: tokens.fontSize.caption, fontWeight: tokens.fontWeight.semibold, letterSpacing: 0.5 },

@@ -45,6 +45,7 @@ export function filterTrainingHistory(
 
   return records
     .filter(({ metadata }) => {
+      if (metadata.trainingProgress?.status === 'active' || metadata.trainingProgress?.status === 'paused') return false;
       if (discipline !== 'all' && metadata.discipline !== discipline) return false;
       if (metadata.date > todayDate) return false;
       return firstAllowedDate === null || metadata.date >= firstAllowedDate;
@@ -70,7 +71,7 @@ export function computeWeeklyTrainingSummary(
   );
   const strengthVolumeKg = currentWeekRecords.reduce(
     (sum, record) => sum + record.sets.reduce(
-      (setSum, set) => setSum + set.actualWeightKg * set.actualReps,
+      (setSum, set) => setSum + (set.actualWeightKg ?? 0) * (set.actualReps ?? 0),
       0,
     ),
     0,
@@ -122,7 +123,11 @@ function hasCompleteResult(session: Session, record: RecordedTrainingSession | u
     Array.from({ length: exercise.sets }, (_, index) => `${exercise.id}_set_${index + 1}`),
   );
   if (expectedSetIds.length === 0) return false;
-  const recordedSetIds = new Set(record.sets.map((set) => set.id));
+  const recordedSetIds = new Set(
+    record.sets
+      .filter((set) => set.status !== 'skipped' && typeof set.actualReps === 'number')
+      .map((set) => set.id),
+  );
   return expectedSetIds.every((setId) => recordedSetIds.has(setId));
 }
 

@@ -2,6 +2,18 @@ import { Session, Discipline } from '@/domain/planning';
 
 export type Rpe = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 export type SessionSource = 'planned' | 'free';
+export type TrainingStatus = 'active' | 'paused' | 'completed' | 'incomplete';
+
+export interface TrainingProgress {
+  status: TrainingStatus;
+  currentExerciseIndex: number;
+  currentSetNumber: number;
+  restDurationSeconds: number | null;
+  restEndsAt: number | null;
+  startedAt: string;
+  updatedAt: string;
+  finishedAt: string | null;
+}
 
 export interface SessionRecordMetadata {
   id: string;
@@ -10,19 +22,26 @@ export interface SessionRecordMetadata {
   discipline: Discipline;
   plannedSession: Session | null;
   createdAt: string;
+  trainingProgress?: TrainingProgress;
 }
 
 export interface SessionSetRecord {
   id: string;
+  status: 'completed' | 'skipped';
   exerciseId: string;
   exerciseName: string;
   setNumber: number;
   plannedWeightKg: number | null;
   plannedReps: string | null;
-  actualWeightKg: number;
-  actualReps: number;
-  rpe: Rpe;
+  actualWeightKg: number | null;
+  actualReps: number | null;
+  rpe: Rpe | null;
   recordedAt: string;
+}
+
+export interface ActiveTrainingSession {
+  metadata: SessionRecordMetadata;
+  progress: TrainingProgress;
 }
 
 export interface RunLog {

@@ -64,6 +64,7 @@ function makeRecord(
     },
     sets: discipline === 'strength' ? [1, 2].map((setNumber) => ({
       id: `row_set_${setNumber}`,
+      status: 'completed' as const,
       exerciseId: 'row',
       exerciseName: 'Remo',
       setNumber,
@@ -137,6 +138,36 @@ describe('computeWeeklyTrainingSummary', () => {
     const summary = computeWeeklyTrainingSummary([partial], plan, '2026-10-16');
     expect(summary.completedPlannedSessions).toBe(0);
     expect(summary.adherencePercent).toBe(0);
+  });
+
+  it('counts skipped sets as logged but not completed or loaded volume', () => {
+    const skipped = makeRecord('planned_2026-10-12_tue_1', '2026-10-13', 'strength');
+    skipped.sets[1] = {
+      ...skipped.sets[1],
+      status: 'skipped',
+      actualWeightKg: null,
+      actualReps: null,
+      rpe: null,
+    };
+    const summary = computeWeeklyTrainingSummary([skipped], plan, '2026-10-16');
+    expect(summary.strengthVolumeKg).toBe(160);
+    expect(summary.completedPlannedSessions).toBe(0);
+    expect(summary.adherencePercent).toBe(0);
+  });
+
+  it('hides active and paused sessions from the completed history list', () => {
+    const active = makeRecord('active', '2026-10-15', 'running');
+    active.metadata.trainingProgress = {
+      status: 'paused',
+      currentExerciseIndex: 0,
+      currentSetNumber: 1,
+      restDurationSeconds: null,
+      restEndsAt: null,
+      startedAt: '2026-10-15T08:00:00.000Z',
+      updatedAt: '2026-10-15T08:05:00.000Z',
+      finishedAt: null,
+    };
+    expect(filterTrainingHistory([active], 'all', 'all', '2026-10-16')).toEqual([]);
   });
 
   it('omits adherence when the active plan is not for this week', () => {

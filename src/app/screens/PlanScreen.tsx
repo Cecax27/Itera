@@ -1,13 +1,16 @@
 // Pantalla del plan semanal. Muestra los 7 días con su sesión si la hay.
 // Por ahora es solo lectura; la edición llega en un hito posterior.
 
+import { useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Button, Card, Screen as ScreenLayout } from '@/app/components';
+import { Button, Card, RecordedSessionCard, Screen as ScreenLayout } from '@/app/components';
 import { FadeIn } from '@/app/animations';
 import { ALL_WEEK_DAYS, WeekDay } from '@/domain/profile';
 import { dateForWeekDay, Plan, Session } from '@/domain/planning';
 import { useThemeTokens } from '@/app/theme';
+import { ActiveTrainingSession, plannedSessionRecordId, RecordedTrainingSession } from '@/domain/training';
 
 const DAY_LABELS: Record<WeekDay, string> = {
   mon: 'L',
@@ -33,11 +36,27 @@ export interface PlanScreenProps {
   plan: Plan | null;
   onRegisterPlanned: (session: Session, date: string, day: WeekDay, index: number) => void;
   onRegisterFree: (date: string) => void;
+  recordedSessions: readonly RecordedTrainingSession[];
+  historyLoading: boolean;
+  onRefreshHistory: () => Promise<void>;
+  activeTraining: ActiveTrainingSession | null;
 }
 
-export function PlanScreen({ plan, onRegisterPlanned, onRegisterFree }: PlanScreenProps) {
+export function PlanScreen({
+  plan,
+  onRegisterPlanned,
+  onRegisterFree,
+  recordedSessions,
+  historyLoading,
+  onRefreshHistory,
+  activeTraining,
+}: PlanScreenProps) {
   const tokens = useThemeTokens();
   const styles = makeStyles(tokens);
+
+  useFocusEffect(useCallback(() => {
+    void onRefreshHistory();
+  }, [onRefreshHistory]));
 
   if (!plan) {
     return (
@@ -48,7 +67,12 @@ export function PlanScreen({ plan, onRegisterPlanned, onRegisterFree }: PlanScre
             El primer plan se genera automáticamente al completar el onboarding.
           </Text>
         </View>
-        <Button label="Registrar sesión libre" onPress={() => onRegisterFree(new Date().toISOString().slice(0, 10))} variant="secondary" />
+        <Button
+          label="Registrar sesión libre"
+          onPress={() => onRegisterFree(new Date().toISOString().slice(0, 10))}
+          variant="secondary"
+          disabled={historyLoading || Boolean(activeTraining && ['active', 'paused'].includes(activeTraining.progress.status))}
+        />
       </ScreenLayout>
     );
   }
@@ -90,9 +114,15 @@ export function PlanScreen({ plan, onRegisterPlanned, onRegisterFree }: PlanScre
                 <Text style={styles.restDay}>Descanso</Text>
               ) : (
                 sessions.map((session, j) => (
-                  <SessionCard
+                  <PlannedSessionCard
                     key={j}
                     session={session}
+                    plan={plan}
+                    day={day}
+                    index={j}
+                    record={recordedSessions.find((candidate) => candidate.metadata.id === plannedSessionRecordId(plan.weekStart, day, j)) ?? null}
+                    activeTraining={activeTraining}
+                    historyLoading={historyLoading}
                     onRegister={() => onRegisterPlanned(session, dateForWeekDay(plan.weekStart, day), day, j)}
                   />
                 ))
@@ -105,13 +135,58 @@ export function PlanScreen({ plan, onRegisterPlanned, onRegisterFree }: PlanScre
         label="Registrar sesión libre"
         onPress={() => onRegisterFree(new Date().toISOString().slice(0, 10))}
         variant="secondary"
+        disabled={historyLoading || Boolean(activeTraining && ['active', 'paused'].includes(activeTraining.progress.status))}
         style={styles.freeSessionButton}
       />
     </ScreenLayout>
   );
 }
 
-function SessionCard({ session, onRegister }: { session: Session; onRegister: () => void }) {
+function PlannedSessionCard({
+  session,
+  plan,
+  day,
+  index,
+  record,
+  activeTraining,
+  historyLoading,
+  onRegister,
+}: {
+  session: Session;
+  plan: Plan;
+  day: WeekDay;
+  index: number;
+  record: RecordedTrainingSession | null;
+  activeTraining: ActiveTrainingSession | null;
+  historyLoading: boolean;
+  onRegister: () => void;
+}) {
+  const tokens = useThemeTokens();
+  const currentSessionId = plannedSessionRecordId(plan.weekStart, day, index);
+  const activeThisSession = activeTraining?.metadata.id === currentSessionId
+    && (activeTraining.progress.status === 'active' || activeTraining.progress.status === 'paused');
+  const persistedActiveThisSession = record?.metadata.trainingProgress?.status === 'active'
+    || record?.metadata.trainingProgress?.status === 'paused';
+  if (activeThisSession || persistedActiveThisSession) {
+    return (
+      <Card accent={session.discipline === 'strength' ? 'lime' : 'run'} padding="md" style={sessionCardStyles.cardSpacing}>
+        <Text style={[sessionCardStyles.detail, { color: tokens.colors.textSecondary }]}>Sesión en curso · continúa desde Hoy.</Text>
+      </Card>
+    );
+  }
+  if (record && record.metadata.trainingProgress?.status !== 'active' && record.metadata.trainingProgress?.status !== 'paused') {
+    return <RecordedSessionCard session={session} record={record} compact />;
+  }
+  return (
+    <SessionCard
+      session={session}
+      onRegister={onRegister}
+      disabled={historyLoading || Boolean(activeTraining && ['active', 'paused'].includes(activeTraining.progress.status))}
+    />
+  );
+}
+
+function SessionCard({ session, onRegister, disabled }: { session: Session; onRegister: () => void; disabled: boolean }) {
   const tokens = useThemeTokens();
   return (
     <Card
@@ -145,6 +220,7 @@ function SessionCard({ session, onRegister }: { session: Session; onRegister: ()
         label="Registrar resultado"
         onPress={onRegister}
         variant="secondary"
+        disabled={disabled}
         style={sessionCardStyles.registerButton}
       />
     </Card>

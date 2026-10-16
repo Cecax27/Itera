@@ -2,6 +2,9 @@ export type {
   Rpe,
   SessionSource,
   SessionRecordMetadata,
+  TrainingProgress,
+  TrainingStatus,
+  ActiveTrainingSession,
   SessionSetRecord,
   RunLog,
 } from './records';
@@ -24,3 +27,4 @@ export {
   filterTrainingHistory,
   mondayOfDate,
 } from './history';
+export { advanceStrengthTrainingProgress, createTrainingProgress, withTrainingStatus } from './session-state';

@@ -33,5 +33,11 @@ export function useTrainingHistory() {
     }
   }, [authStatus, user]);
 
-  return { sessions, loading, error, refresh };
+  const deleteSession = useCallback(async (sessionId: string) => {
+    if (!user) throw new Error('Inicia sesión para eliminar el entrenamiento.');
+    await firestoreSessionRecordRepository.deleteSession(user.id, sessionId);
+    await refresh();
+  }, [refresh, user]);
+
+  return { sessions, loading, error, refresh, deleteSession };
 }

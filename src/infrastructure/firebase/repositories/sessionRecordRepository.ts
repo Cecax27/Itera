@@ -12,6 +12,7 @@ import {
   RunLog,
   SessionRecordMetadata,
   SessionSetRecord,
+  TrainingProgress,
 } from '@/domain/training';
 
 import { getDbInstance } from '../client';
@@ -35,6 +36,69 @@ async function metadataForWrite(userId: string, metadata: SessionRecordMetadata)
 }
 
 export const firestoreSessionRecordRepository = {
+  async getSessionRecord(userId: string, sessionId: string): Promise<SessionRecordMetadata | null> {
+    const snapshot = await getDoc(sessionRef(userId, sessionId));
+    return snapshot.exists()
+      ? ({ ...snapshot.data(), id: snapshot.id } as SessionRecordMetadata)
+      : null;
+  },
+
+  async deleteSession(userId: string, sessionId: string): Promise<void> {
+    const parentRef = sessionRef(userId, sessionId);
+    const [setsSnapshot, runLogsSnapshot] = await Promise.all([
+      getDocs(collection(parentRef, 'sets')),
+      getDocs(collection(parentRef, 'run_log')),
+    ]);
+    const documentsToDelete = setsSnapshot.docs.length + runLogsSnapshot.docs.length + 1;
+    if (documentsToDelete > 500) {
+      throw new Error('Esta sesión tiene demasiados registros para borrarse de una vez.');
+    }
+
+    const batch = writeBatch(getDbInstance());
+    setsSnapshot.docs.forEach((snapshot) => batch.delete(snapshot.ref));
+    runLogsSnapshot.docs.forEach((snapshot) => batch.delete(snapshot.ref));
+    batch.delete(parentRef);
+    await batch.commit();
+  },
+
+  async getActiveTrainingSession(userId: string) {
+    const sessionsSnapshot = await getDocs(collection(getDbInstance(), 'users', userId, 'sessions'));
+    const active = sessionsSnapshot.docs
+      .map((snapshot) => {
+        const metadata = { ...snapshot.data(), id: snapshot.id } as SessionRecordMetadata;
+        const progress = metadata.trainingProgress;
+        return progress && (progress.status === 'active' || progress.status === 'paused')
+          ? { metadata, progress }
+          : null;
+      })
+      .filter((session): session is NonNullable<typeof session> => session !== null)
+      .sort((a, b) => b.progress.updatedAt.localeCompare(a.progress.updatedAt));
+
+    return active[0] ?? null;
+  },
+
+  async saveTrainingProgress(
+    userId: string,
+    metadata: SessionRecordMetadata,
+    progress: TrainingProgress,
+  ): Promise<void> {
+    const parent = await metadataForWrite(userId, metadata);
+    await setDoc(parent.ref, { ...parent.data, trainingProgress: progress }, { merge: true });
+  },
+
+  async saveTrainingSet(
+    userId: string,
+    metadata: SessionRecordMetadata,
+    set: SessionSetRecord,
+    progress: TrainingProgress,
+  ): Promise<void> {
+    const batch = writeBatch(getDbInstance());
+    const parent = await metadataForWrite(userId, metadata);
+    batch.set(parent.ref, { ...parent.data, trainingProgress: progress }, { merge: true });
+    batch.set(doc(sessionRef(userId, metadata.id), 'sets', set.id), set);
+    await batch.commit();
+  },
+
   async getHistory(userId: string): Promise<RecordedTrainingSession[]> {
     const sessionsSnapshot = await getDocs(collection(getDbInstance(), 'users', userId, 'sessions'));
     const sessions = await Promise.all(sessionsSnapshot.docs.map(async (sessionSnapshot) => {
@@ -93,10 +157,14 @@ export const firestoreSessionRecordRepository = {
     userId: string,
     metadata: SessionRecordMetadata,
     runLog: RunLog,
+    trainingProgress?: TrainingProgress,
   ): Promise<void> {
     const batch = writeBatch(getDbInstance());
     const parent = await metadataForWrite(userId, metadata);
-    batch.set(parent.ref, parent.data, { merge: true });
+    batch.set(parent.ref, {
+      ...parent.data,
+      ...(trainingProgress ? { trainingProgress } : {}),
+    }, { merge: true });
     batch.set(doc(sessionRef(userId, metadata.id), 'run_log', 'result'), runLog);
     await batch.commit();
   },

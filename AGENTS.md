@@ -45,8 +45,8 @@ El objetivo central: **"Entrena con un propósito. Entiende tu progreso. Siempre
     │   ├── components/       # Botones, tarjetas, campos y controles compartidos
     │   ├── navigation/       # Stacks, tabs, drawers, tipos de navegación
     │   │   └── RootStack.tsx # Auth, onboarding y tabs (Hoy, Plan, Progreso)
-    │   ├── screens/          # Hoy, Plan, Progreso, Ajustes, onboarding y registros
-    │   └── hooks/            # Hooks de auth, perfil, plan y resultados
+    │   ├── screens/          # Hoy, Plan, Progreso, Ajustes, entrenamiento y registros
+    │   └── hooks/            # Auth, perfil, plan, historial y estado de entrenamiento
     ├── domain/               # Lógica de negocio pura, sin React ni Firebase (ver src/domain/README.md)
     │   ├── planning/          # Motor del plan semanal y sesión del día
     │   ├── training/          # RPE y modelos de resultados
@@ -79,7 +79,8 @@ El objetivo central: **"Entrena con un propósito. Entiende tu progreso. Siempre
 - **H2** (Plan semanal): dominio `src/domain/planning/` con tipos y motor puro (18 tests), `firestorePlanRepository` en `users/{uid}/plans/current`, `usePlan` hook, `PlanScreen` con bottom-tabs, generación automática al terminar el onboarding. ✅
 - **H3** (Sesión del día, primera cara): `weekDayOf`, `getTodaySessions`, `getNextSession`, `computeWeekProgress` (10 tests); `TodayScreen` con encabezado + sesión + descanso, propósito visible bajo el título, botón Empezar como acción principal. ✅
 - **H4** (Registro de resultados): dominio `src/domain/training/`, registros de series por ejercicio y resultado de carrera; persistencia bajo `users/{uid}/sessions/{sessionId}`, hooks `useSessionSets` y `useRunLog`, formularios disponibles desde Hoy y Plan. RPE 1–10. Se permiten sesiones libres, separadas de las planificadas. ✅
-- **H5** (Historial y análisis): `ProgressScreen` con resumen semanal compacto (km de carrera, volumen real de fuerza y adherencia), historial filtrable por disciplina y periodo; agregaciones puras en `src/domain/training/history.ts`; Ajustes pasa a acceso secundario. Sin gráficas en este alcance. ✅
+- **H5** (Historial y análisis): `ProgressScreen` con resumen semanal compacto (km de carrera, volumen real de fuerza y adherencia), historial filtrable por disciplina y periodo, eliminación confirmada de registros; agregaciones puras en `src/domain/training/history.ts`; Ajustes pasa a acceso secundario. Sin gráficas en este alcance. ✅
+- **H6** (Modo entrenamiento aislado): `TrainingScreen` de fuerza y carrera; progreso y posición guardados en Firestore para pausar/reanudar; registro por serie, serie omitida sin datos inventados, overrides guardados como realizado y temporizador de descanso opcional. El plan original permanece intacto. ✅
 
 ### Pendiente de definir (no inventar)
 

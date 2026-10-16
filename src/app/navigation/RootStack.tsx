@@ -16,24 +16,32 @@ import { NavigationContainer, DarkTheme, DefaultTheme, Theme } from '@react-navi
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 
 import { SessionRegistrationModal, SessionRegistrationTarget } from '@/app/screens/SessionRegistrationModal';
-import { useAuth, usePlan, useProfile } from '@/app/hooks';
+import { useActiveTrainingSession, useAuth, usePlan, useProfile, useTrainingHistory } from '@/app/hooks';
 import { LoginScreen } from '@/app/screens/LoginScreen';
 import { OnboardingScreen } from '@/app/screens/OnboardingScreen';
 import { PlanScreen } from '@/app/screens/PlanScreen';
 import { ProgressScreen } from '@/app/screens/ProgressScreen';
 import { TodayScreen } from '@/app/screens/TodayScreen';
 import { SettingsScreen } from '@/app/screens/SettingsScreen';
+import { TrainingScreen } from '@/app/screens/TrainingScreen';
 import { useThemeTokens } from '@/app/theme';
 import { Profile, WeekDay } from '@/domain/profile';
 import { Plan, Session } from '@/domain/planning';
-import { createFreeSessionRecordId, plannedSessionRecordId } from '@/domain/training';
+import {
+  ActiveTrainingSession,
+  createFreeSessionRecordId,
+  plannedSessionRecordId,
+  RecordedTrainingSession,
+  SessionRecordMetadata,
+} from '@/domain/training';
 
 export type RootStackParamList = {
   Tabs: undefined;
   Settings: undefined;
+  Training: { sessionId: string };
 };
 
 export type TabsParamList = {
@@ -49,10 +57,16 @@ export function RootStackComponent() {
   const { status: authStatus } = useAuth();
   const { status: profileStatus, profile, save } = useProfile();
   const { plan, generateFromProfile } = usePlan();
+  const activeTrainingState = useActiveTrainingSession();
+  const trainingHistory = useTrainingHistory();
   const tokens = useThemeTokens();
   const [registrationTarget, setRegistrationTarget] = useState<SessionRegistrationTarget | null>(null);
 
   function openPlannedRegistration(session: Session, date: string, day: WeekDay, index: number) {
+    if (activeTrainingState.active?.progress.status === 'active' || activeTrainingState.active?.progress.status === 'paused') {
+      Alert.alert('Sesión en curso', 'Pausa o termina la sesión antes de registrar otro resultado.');
+      return;
+    }
     if (!plan) return;
     setRegistrationTarget({
       sessionId: plannedSessionRecordId(plan.weekStart, day, index),
@@ -63,12 +77,21 @@ export function RootStackComponent() {
   }
 
   function openFreeRegistration(date: string) {
+    if (activeTrainingState.active?.progress.status === 'active' || activeTrainingState.active?.progress.status === 'paused') {
+      Alert.alert('Sesión en curso', 'Pausa o termina la sesión antes de registrar otro resultado.');
+      return;
+    }
     setRegistrationTarget({
       sessionId: createFreeSessionRecordId(),
       date,
       source: 'free',
       plannedSession: null,
     });
+  }
+
+  async function finishIncompleteTraining() {
+    await activeTrainingState.finishIncomplete();
+    await trainingHistory.refresh();
   }
 
   let content: React.ReactNode;
@@ -102,8 +125,71 @@ export function RootStackComponent() {
           {({ navigation }) => (
             <MainTabs
               plan={plan}
+              recordedSessions={trainingHistory.sessions}
+              historyLoading={trainingHistory.loading}
+              historyError={trainingHistory.error}
+              onRefreshHistory={trainingHistory.refresh}
+              onDeleteSession={trainingHistory.deleteSession}
               onRegisterPlanned={openPlannedRegistration}
               onRegisterFree={openFreeRegistration}
+              activeTraining={activeTrainingState.active}
+              activeTrainingLoading={activeTrainingState.loading}
+              onResumeActive={() => {
+                if (!activeTrainingState.active) return;
+                const resume = async () => {
+                  if (activeTrainingState.active?.progress.status === 'paused') {
+                    await activeTrainingState.updateProgress({
+                      ...activeTrainingState.active.progress,
+                      status: 'active',
+                      updatedAt: new Date().toISOString(),
+                    });
+                  }
+                  navigation.navigate('Training', { sessionId: activeTrainingState.active!.metadata.id });
+                };
+                void resume().catch((err) => Alert.alert(
+                  'No se pudo reanudar',
+                  err instanceof Error ? err.message : 'Inténtalo de nuevo.',
+                ));
+              }}
+              onFinishIncomplete={() => void finishIncompleteTraining().catch((err) => Alert.alert(
+                'No se pudo cerrar la sesión',
+                err instanceof Error ? err.message : 'Inténtalo de nuevo.',
+              ))}
+              onStartPlanned={(session, date, day, index) => {
+                const sessionId = plannedSessionRecordId(plan?.weekStart ?? '', day, index);
+                const start = async () => {
+                  if (activeTrainingState.active) {
+                    if (activeTrainingState.active.metadata.id === sessionId) {
+                      if (activeTrainingState.active.progress.status === 'paused') {
+                        await activeTrainingState.updateProgress({
+                          ...activeTrainingState.active.progress,
+                          status: 'active',
+                          updatedAt: new Date().toISOString(),
+                        });
+                      }
+                      navigation.navigate('Training', { sessionId });
+                      return;
+                    }
+                    Alert.alert('Hay una sesión pendiente', 'Continúala o termínala como incompleta antes de empezar otra.');
+                    return;
+                  }
+                  if (!plan) return;
+                  const metadata: SessionRecordMetadata = {
+                    id: sessionId,
+                    date,
+                    source: 'planned',
+                    discipline: session.discipline,
+                    plannedSession: session,
+                    createdAt: new Date().toISOString(),
+                  };
+                  await activeTrainingState.start(metadata);
+                  navigation.navigate('Training', { sessionId });
+                };
+                void start().catch((err) => Alert.alert(
+                  'No se pudo iniciar',
+                  err instanceof Error ? err.message : 'Inténtalo de nuevo.',
+                ));
+              }}
               onOpenSettings={() => navigation.navigate('Settings')}
             />
           )}
@@ -113,6 +199,27 @@ export function RootStackComponent() {
           component={SettingsScreen}
           options={{ title: 'Ajustes', presentation: 'modal' }}
         />
+        <RootStack.Screen name="Training" options={{ headerShown: false, gestureEnabled: false }}>
+          {({ route, navigation }) => (
+            <TrainingScreen
+              key={route.params.sessionId}
+              sessionId={route.params.sessionId}
+              loading={activeTrainingState.loading}
+              loadError={activeTrainingState.error}
+              training={activeTrainingState.active}
+              onRefresh={activeTrainingState.refresh}
+              onUpdateProgress={activeTrainingState.updateProgress}
+              onRecordSet={activeTrainingState.recordSet}
+              onRecordRun={activeTrainingState.recordRun}
+               onFinishIncomplete={finishIncompleteTraining}
+               onDismiss={() => {
+                 activeTrainingState.dismiss();
+                 void trainingHistory.refresh();
+               }}
+              onExit={() => navigation.goBack()}
+            />
+          )}
+        </RootStack.Screen>
       </RootStack.Navigator>
     );
   }
@@ -127,7 +234,10 @@ export function RootStackComponent() {
           key={registrationTarget?.sessionId ?? 'closed'}
           target={registrationTarget}
           onClose={() => setRegistrationTarget(null)}
-          onSaved={() => setRegistrationTarget(null)}
+           onSaved={() => {
+             setRegistrationTarget(null);
+             void trainingHistory.refresh();
+           }}
         />
       )}
     </NavigationContainer>
@@ -160,14 +270,34 @@ const darkNavTheme: Theme = {
 
 function MainTabs({
   plan,
+  recordedSessions,
+  historyLoading,
+  historyError,
+  onRefreshHistory,
+  onDeleteSession,
   onRegisterPlanned,
   onRegisterFree,
   onOpenSettings,
+  activeTraining,
+  activeTrainingLoading,
+  onStartPlanned,
+  onResumeActive,
+  onFinishIncomplete,
 }: {
   plan: Plan | null;
+  recordedSessions: readonly RecordedTrainingSession[];
+  historyLoading: boolean;
+  historyError: string | null;
+  onRefreshHistory: () => Promise<void>;
+  onDeleteSession: (sessionId: string) => Promise<void>;
   onRegisterPlanned: (session: Session, date: string, day: WeekDay, index: number) => void;
   onRegisterFree: (date: string) => void;
   onOpenSettings: () => void;
+  activeTraining: ActiveTrainingSession | null;
+  activeTrainingLoading: boolean;
+  onStartPlanned: (session: Session, date: string, day: WeekDay, index: number) => void;
+  onResumeActive: () => void;
+  onFinishIncomplete: () => void;
 }) {
   const tokens = useThemeTokens();
   return (
@@ -190,7 +320,21 @@ function MainTabs({
           ),
         }}
       >
-        {() => <TodayScreen plan={plan} onRegisterPlanned={onRegisterPlanned} onRegisterFree={onRegisterFree} />}
+        {() => (
+          <TodayScreen
+            plan={plan}
+            recordedSessions={recordedSessions}
+            historyLoading={historyLoading}
+            onRefreshHistory={onRefreshHistory}
+            onRegisterPlanned={onRegisterPlanned}
+            onRegisterFree={onRegisterFree}
+            activeTraining={activeTraining}
+            activeTrainingLoading={activeTrainingLoading}
+            onStartPlanned={onStartPlanned}
+            onResumeActive={onResumeActive}
+            onFinishIncomplete={onFinishIncomplete}
+          />
+        )}
       </Tabs.Screen>
       <Tabs.Screen
         name="Plan"
@@ -201,7 +345,17 @@ function MainTabs({
           ),
         }}
       >
-        {() => <PlanScreen plan={plan} onRegisterPlanned={onRegisterPlanned} onRegisterFree={onRegisterFree} />}
+        {() => (
+          <PlanScreen
+            plan={plan}
+            onRegisterPlanned={onRegisterPlanned}
+            onRegisterFree={onRegisterFree}
+            recordedSessions={recordedSessions}
+            historyLoading={historyLoading}
+            onRefreshHistory={onRefreshHistory}
+            activeTraining={activeTraining}
+          />
+        )}
       </Tabs.Screen>
       <Tabs.Screen
         name="Progreso"
@@ -213,7 +367,17 @@ function MainTabs({
           ),
         }}
       >
-        {() => <ProgressScreen plan={plan} onOpenSettings={onOpenSettings} />}
+        {() => (
+          <ProgressScreen
+            plan={plan}
+            onOpenSettings={onOpenSettings}
+            sessions={recordedSessions}
+            loading={historyLoading}
+            error={historyError}
+            onRefresh={onRefreshHistory}
+            onDeleteSession={onDeleteSession}
+          />
+        )}
       </Tabs.Screen>
     </Tabs.Navigator>
   );

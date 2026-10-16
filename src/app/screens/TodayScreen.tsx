@@ -8,9 +8,11 @@
 // - Cards con fade-in al montar.
 
 import { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Button, Card, Screen as ScreenLayout } from '@/app/components';
+import { Button, Card, RecordedSessionCard, Screen as ScreenLayout } from '@/app/components';
 import { FadeIn, usePulseLoop } from '@/app/animations';
 import {
   Plan,
@@ -23,6 +25,7 @@ import {
   weekDayOf,
 } from '@/domain/planning';
 import { WeekDay } from '@/domain/profile';
+import { ActiveTrainingSession, plannedSessionRecordId, RecordedTrainingSession } from '@/domain/training';
 import { useThemeTokens } from '@/app/theme';
 
 const DAY_LABELS: Record<WeekDay, string> = {
@@ -39,29 +42,57 @@ export interface TodayScreenProps {
   plan: Plan | null;
   onRegisterPlanned: (session: Session, date: string, day: WeekDay, index: number) => void;
   onRegisterFree: (date: string) => void;
+  activeTraining: ActiveTrainingSession | null;
+  activeTrainingLoading: boolean;
+  onStartPlanned: (session: Session, date: string, day: WeekDay, index: number) => void;
+  onResumeActive: () => void;
+  onFinishIncomplete: () => void;
+  recordedSessions: readonly RecordedTrainingSession[];
+  historyLoading: boolean;
+  onRefreshHistory: () => Promise<void>;
 }
 
-export function TodayScreen({ plan, onRegisterPlanned, onRegisterFree }: TodayScreenProps) {
+export function TodayScreen({
+  plan,
+  onRegisterPlanned,
+  onRegisterFree,
+  activeTraining,
+  activeTrainingLoading,
+  onStartPlanned,
+  onResumeActive,
+  onFinishIncomplete,
+  recordedSessions,
+  historyLoading,
+  onRefreshHistory,
+}: TodayScreenProps) {
   const tokens = useThemeTokens();
   const styles = makeStyles(tokens);
   const todayIso = useMemo(() => new Date().toISOString(), []);
   const day = plan ? weekDayOf(todayIso) : 'mon';
   const todayLabel = plan ? DAY_LABELS[day] : 'Hoy';
 
+  useFocusEffect(useCallback(() => {
+    void onRefreshHistory();
+  }, [onRefreshHistory]));
+
   if (!plan) {
     return (
       <ScreenLayout scroll>
+        {isActiveOrPaused(activeTraining) ? (
+          <ActiveTrainingCard active={activeTraining} onResume={onResumeActive} onFinishIncomplete={onFinishIncomplete} />
+        ) : null}
         <View style={styles.empty}>
           <Text style={styles.emptyTitle}>Aún no hay plan generado.</Text>
           <Text style={styles.emptyBody}>
             Completa el onboarding para que Itera genere tu plan semanal.
           </Text>
         </View>
-        <Button label="Registrar sesión libre" onPress={() => onRegisterFree(todayIso.slice(0, 10))} variant="secondary" />
+        <Button label="Registrar sesión libre" onPress={() => onRegisterFree(todayIso.slice(0, 10))} variant="secondary" disabled={Boolean(isActiveOrPaused(activeTraining)) || historyLoading} />
       </ScreenLayout>
     );
   }
 
+  const plannedWeekStart = plan.weekStart;
   const todaySessions = getTodaySessions(plan, todayIso);
   const progress = computeWeekProgress(plan);
   const isRestDay = todaySessions.length === 0;
@@ -69,6 +100,9 @@ export function TodayScreen({ plan, onRegisterPlanned, onRegisterFree }: TodaySc
 
   return (
     <ScreenLayout scroll>
+      {isActiveOrPaused(activeTraining) ? (
+        <ActiveTrainingCard active={activeTraining} onResume={onResumeActive} onFinishIncomplete={onFinishIncomplete} />
+      ) : null}
       <FadeIn delay={0}>
         <Text style={styles.dayLabel}>{todayLabel.toUpperCase()}</Text>
         <ProgressLine progress={progress} />
@@ -82,10 +116,7 @@ export function TodayScreen({ plan, onRegisterPlanned, onRegisterFree }: TodaySc
         <View style={styles.sessionsList}>
           {todaySessions.map((session, i) => (
             <FadeIn key={i} delay={120 + i * 80}>
-              <SessionCard
-                session={session}
-                onRegister={() => onRegisterPlanned(session, todayIso.slice(0, 10), day, i)}
-              />
+              {renderPlannedCard(session, i)}
             </FadeIn>
           ))}
         </View>
@@ -94,10 +125,32 @@ export function TodayScreen({ plan, onRegisterPlanned, onRegisterFree }: TodaySc
         label="Registrar sesión libre"
         onPress={() => onRegisterFree(todayIso.slice(0, 10))}
         variant="secondary"
+        disabled={Boolean(isActiveOrPaused(activeTraining)) || historyLoading}
         style={styles.freeSessionButton}
       />
     </ScreenLayout>
   );
+
+  function renderPlannedCard(session: Session, index: number) {
+    const recordId = plannedSessionRecordId(plannedWeekStart, day, index);
+    const record = recordedSessions.find((candidate) => candidate.metadata.id === recordId);
+    if (record && !isActiveTrainingRecord(record)) {
+      return <RecordedSessionCard session={session} record={record} />;
+    }
+    const activeThisSession = (isActiveOrPaused(activeTraining) && activeTraining.metadata.id === recordId)
+      || Boolean(record && isActiveTrainingRecord(record));
+    const anotherSessionActive = isActiveOrPaused(activeTraining) && !activeThisSession;
+    return (
+      <SessionCard
+        session={session}
+        startLabel={activeThisSession ? 'Sesión en curso' : anotherSessionActive ? 'Sesión pendiente' : 'Empezar'}
+        startDisabled={historyLoading || activeTrainingLoading || activeThisSession || anotherSessionActive}
+        showRegister={!historyLoading && !activeTrainingLoading && !activeThisSession && !anotherSessionActive}
+        onStart={() => onStartPlanned(session, todayIso.slice(0, 10), day, index)}
+        onRegister={() => onRegisterPlanned(session, todayIso.slice(0, 10), day, index)}
+      />
+    );
+  }
 }
 
 // --- Subcomponentes ----
@@ -121,7 +174,21 @@ const progressStyles = StyleSheet.create({
   },
 });
 
-function SessionCard({ session, onRegister }: { session: Session; onRegister: () => void }) {
+function SessionCard({
+  session,
+  startLabel,
+  startDisabled,
+  showRegister,
+  onStart,
+  onRegister,
+}: {
+  session: Session;
+  startLabel: string;
+  startDisabled: boolean;
+  showRegister: boolean;
+  onStart: () => void;
+  onRegister: () => void;
+}) {
   const tokens = useThemeTokens();
   const isStrength = session.discipline === 'strength';
   const pulse = usePulseLoop(true, 1800);
@@ -151,13 +218,78 @@ function SessionCard({ session, onRegister }: { session: Session; onRegister: ()
       {!isStrength && <RunningDetails session={session} />}
 
       <View style={sessionCardStyles.actions}>
-        <Button label="Empezar" onPress={() => {}} variant="primary" />
-        <Pressable style={sessionCardStyles.secondaryAction} onPress={onRegister} accessibilityRole="button">
-          <Text style={[sessionCardStyles.secondaryActionText, { color: tokens.colors.ink }]}>Registrar resultado</Text>
-        </Pressable>
+        <Button label={startLabel} onPress={onStart} variant="primary" disabled={startDisabled} />
+        {showRegister ? (
+          <Pressable style={sessionCardStyles.secondaryAction} onPress={onRegister} accessibilityRole="button">
+            <Text style={[sessionCardStyles.secondaryActionText, { color: tokens.colors.ink }]}>Registrar resultado</Text>
+          </Pressable>
+        ) : null}
       </View>
     </Card>
   );
+}
+
+function ActiveTrainingCard({
+  active,
+  onResume,
+  onFinishIncomplete,
+}: {
+  active: ActiveTrainingSession;
+  onResume: () => void;
+  onFinishIncomplete: () => void;
+}) {
+  const tokens = useThemeTokens();
+  const styles = makeActiveTrainingStyles(tokens);
+  const title = active.metadata.plannedSession
+    ? sessionTitle(active.metadata.plannedSession)
+    : 'Sesión de entrenamiento';
+  const location = active.metadata.plannedSession?.discipline === 'strength'
+    ? `Ejercicio ${active.progress.currentExerciseIndex + 1} · serie ${active.progress.currentSetNumber}`
+    : 'Carrera';
+  const statusLabel = active.progress.status === 'paused' ? 'SESIÓN EN PAUSA' : 'SESIÓN PENDIENTE';
+
+  return (
+    <Card accent={active.metadata.discipline === 'strength' ? 'lime' : 'run'} padding="lg" style={styles.card}>
+      <Text style={styles.eyebrow}>{statusLabel}</Text>
+      <Text style={styles.title}>{title}</Text>
+      <Text style={styles.detail}>{location}</Text>
+      <Button label="Continuar sesión" onPress={onResume} variant="primary" style={styles.button} />
+      <Pressable
+        onPress={() => Alert.alert(
+          'Terminar sesión incompleta',
+          'Se conservará lo registrado y la sesión no contará como completada.',
+          [
+            { text: 'Seguir después', style: 'cancel' },
+            { text: 'Terminar', onPress: onFinishIncomplete },
+          ],
+        )}
+        accessibilityRole="button"
+        style={styles.secondaryAction}
+      >
+        <Text style={styles.secondaryText}>Terminar como incompleta</Text>
+      </Pressable>
+    </Card>
+  );
+}
+
+function isActiveOrPaused(training: ActiveTrainingSession | null): training is ActiveTrainingSession {
+  return training?.progress.status === 'active' || training?.progress.status === 'paused';
+}
+
+function isActiveTrainingRecord(record: RecordedTrainingSession): boolean {
+  return record.metadata.trainingProgress?.status === 'active' || record.metadata.trainingProgress?.status === 'paused';
+}
+
+function makeActiveTrainingStyles(tokens: ReturnType<typeof useThemeTokens>) {
+  return StyleSheet.create({
+    card: { marginBottom: tokens.spacing.lg },
+    eyebrow: { fontSize: tokens.fontSize.caption, fontWeight: tokens.fontWeight.semibold, letterSpacing: 0.8, marginBottom: tokens.spacing.xs, color: tokens.colors.textSecondary },
+    title: { fontSize: tokens.fontSize.titleSection, fontWeight: tokens.fontWeight.semibold, color: tokens.colors.ink },
+    detail: { fontSize: tokens.fontSize.label, marginTop: tokens.spacing.xs, color: tokens.colors.textSecondary },
+    button: { marginTop: tokens.spacing.md },
+    secondaryAction: { minHeight: tokens.minTouch, alignItems: 'center', justifyContent: 'center', marginTop: tokens.spacing.xs },
+    secondaryText: { fontSize: tokens.fontSize.label, fontWeight: tokens.fontWeight.medium, color: tokens.colors.ink, opacity: 0.75 },
+  });
 }
 
 const sessionCardStyles = StyleSheet.create({

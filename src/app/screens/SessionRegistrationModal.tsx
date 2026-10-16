@@ -322,9 +322,9 @@ function hydrateExercises(exercises: ExerciseDraft[], records: SessionSetRecord[
       const record = records.find((candidate) => candidate.id === set.id);
       return record ? {
         ...set,
-        weight: String(record.actualWeightKg),
-        reps: String(record.actualReps),
-        rpe: String(record.rpe),
+        weight: String(typeof record.actualWeightKg === 'number' ? record.actualWeightKg : 0),
+        reps: typeof record.actualReps === 'number' ? String(record.actualReps) : '',
+        rpe: typeof record.rpe === 'number' ? String(record.rpe) : '',
       } : set;
     }),
   }));
@@ -346,6 +346,7 @@ function buildSetRecords(exercises: ExerciseDraft[], plannedSession: StrengthSes
       const plannedExercise = plannedSession?.exercises.find((candidate) => candidate.id === exercise.id);
       records.push({
         id: set.id,
+        status: 'completed',
         exerciseId: exercise.id,
         exerciseName: exercise.name.trim(),
         setNumber: set.number,
