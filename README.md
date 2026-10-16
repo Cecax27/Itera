@@ -187,8 +187,6 @@ Si prefieres no tocar el proyecto `itera-4f63c` durante el desarrollo:
 
 App Android con React Native + Expo SDK 57, Firebase y arquitectura de tres capas.
 
-**H0–H6 cerrados**: bootstrap, perfil y objetivos, planificación semanal, sesión del día, registro de resultados, historial y modo entrenamiento aislado. H4 conserva lo planificado separado de lo realizado; H5 añade resumen semanal e historial filtrable; H6 permite ejecutar y reanudar sesiones.
-
-**H7 en curso**: asistente contextual con propuestas auditables y confirmación explícita. Cada usuario configura su API key/modelo en Ajustes; la clave vive en SecureStore del dispositivo y se envía temporalmente a Cloud Functions. Para llamadas reales falta desplegar Functions en un proyecto Firebase con Blaze. Consulta [`functions/README.md`](./functions/README.md).
+**H0–H7 cerrados**: bootstrap, perfil y objetivos, planificación semanal, sesión del día, registro de resultados, historial, modo entrenamiento aislado y asistente con IA. H7 está desplegado en Cloud Functions; cada usuario configura su propia API key/modelo en Ajustes (SecureStore) y el plan solo cambia tras aceptar una propuesta. Consulta [`functions/README.md`](./functions/README.md).
 
 Consulta [`AGENTS.md`](./AGENTS.md) para las guías de trabajo específicas para agentes que desarrollen en este repo.

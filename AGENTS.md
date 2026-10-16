@@ -86,12 +86,7 @@ El objetivo central: **"Entrena con un propósito. Entiende tu progreso. Siempre
 - **H5** (Historial y análisis): `ProgressScreen` con resumen semanal compacto (km de carrera, volumen real de fuerza y adherencia), historial filtrable por disciplina y periodo, eliminación confirmada de registros; agregaciones puras en `src/domain/training/history.ts`; Ajustes pasa a acceso secundario. Sin gráficas en este alcance. ✅
 - **H6** (Modo entrenamiento aislado): `TrainingScreen` de fuerza y carrera; progreso y posición guardados en Firestore para pausar/reanudar; registro por serie, serie omitida sin datos inventados, overrides guardados como realizado y temporizador de descanso opcional. El plan original permanece intacto. ✅
 
-### H7 en curso
-
-- `AssistantScreen` contextual desde Hoy; cada usuario elige su API key/modelo en Ajustes. La key se guarda en Android SecureStore y se envía de forma transitoria a Firebase Functions.
-- Functions consulta perfil, plan e historial del uid autenticado, crea propuestas auditables y no modifica `plans/current` hasta aceptación explícita.
-- `planChanges` conserva snapshots anterior/propuesto, motivo, fuente, estado y fechas; las escrituras del cliente están bloqueadas en `firestore.rules`.
-- Hay fallback determinista y un filtro de seguridad en cliente/servidor. El código y las pruebas están listos; falta desplegar en Firebase Blaze y validar llamadas reales con una clave individual.
+- **H7** (Asistente que explica y adapta): `AssistantScreen` contextual desde Hoy; cada usuario elige su API key/modelo en Ajustes (Android SecureStore, nunca en Firestore) y las Functions desplegadas la usan de forma transitoria. Functions lee perfil, plan e historial del uid autenticado, propone cambios auditables y no modifica `plans/current` hasta aceptación explícita. `planChanges` conserva snapshots anterior/propuesto, motivo, fuente, estado y fechas; sus escrituras están bloqueadas al cliente en `firestore.rules`. Hay fallback determinista y filtro de seguridad en cliente y servidor. ✅
 
 ### Pendiente de definir (no inventar)
 
@@ -99,7 +94,7 @@ El objetivo central: **"Entrena con un propósito. Entiende tu progreso. Siempre
 - **Apple Sign-In**: mismo caso que Google, solo iOS. Pendiente.
 - **Política de edición del perfil después del onboarding** (libre, o campos congelados).
 - **Reglas de progresión reales** (subida de peso, aumento de km, periodización). El motor de H2 es una primera versión; en hitos siguientes o vía IA (H7) se afinan.
-- **Despliegue H7**: desplegar Functions en un proyecto con plan Blaze y validar el flujo con una API key personal; no configurar una clave global ni introducirla en Expo/Firestore.
+- **Validación H7 en uso**: confirmar que las propuestas del asistente son claras, aplicables y seguras con datos reales; ajustar prompts o modelo si hace falta.
 - **Tests de UI**: con `@testing-library/react-native` + jsdom.
 - **Migración de cuentas**: si en el futuro un usuario quiere cambiar de email, hay que decidir el flujo (¿vincular? ¿re-crear cuenta?).
 - **Plan editable**: la pantalla de plan es solo lectura. La edición manual (cambiar sesiones de día, añadir/quitar) llega en un hito posterior.
