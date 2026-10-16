@@ -204,8 +204,8 @@ Si prefieres no tocar el proyecto `itera-4f63c` durante el desarrollo:
 
 App Android con React Native + Expo SDK 57, Firebase y arquitectura de tres capas.
 
-**H0–H4 cerrados**: bootstrap, perfil y objetivos, planificación semanal, sesión del día y registro de resultados. H4 guarda resultados reales separados de lo planificado; admite sesiones planificadas y sesiones libres, con esfuerzo percibido RPE 1–10.
+**H0–H5 cerrados**: bootstrap, perfil y objetivos, planificación semanal, sesión del día, registro de resultados e historial. H4 guarda resultados reales separados de lo planificado; admite sesiones planificadas y libres, con esfuerzo percibido RPE 1–10. H5 añade un resumen semanal compacto e historial filtrable; las gráficas quedan pospuestas.
 
-El siguiente hito del roadmap es **H5 — Historial y análisis**. Consulta [`AGENTS.md`](./AGENTS.md) para las decisiones de arquitectura y pendientes globales.
+El siguiente hito del roadmap es **H6 — Modo entrenamiento aislado**. Consulta [`AGENTS.md`](./AGENTS.md) para las decisiones de arquitectura y pendientes globales.
 
 Consulta [`AGENTS.md`](./AGENTS.md) para las guías de trabajo específicas para agentes que desarrollen en este repo.

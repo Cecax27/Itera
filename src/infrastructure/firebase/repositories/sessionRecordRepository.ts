@@ -7,7 +7,12 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 
-import { RunLog, SessionRecordMetadata, SessionSetRecord } from '@/domain/training';
+import {
+  RecordedTrainingSession,
+  RunLog,
+  SessionRecordMetadata,
+  SessionSetRecord,
+} from '@/domain/training';
 
 import { getDbInstance } from '../client';
 
@@ -30,6 +35,34 @@ async function metadataForWrite(userId: string, metadata: SessionRecordMetadata)
 }
 
 export const firestoreSessionRecordRepository = {
+  async getHistory(userId: string): Promise<RecordedTrainingSession[]> {
+    const sessionsSnapshot = await getDocs(collection(getDbInstance(), 'users', userId, 'sessions'));
+    const sessions = await Promise.all(sessionsSnapshot.docs.map(async (sessionSnapshot) => {
+      const metadata = {
+        ...sessionSnapshot.data(),
+        id: sessionSnapshot.id,
+      } as SessionRecordMetadata;
+
+      if (metadata.discipline === 'strength') {
+        const setsSnapshot = await getDocs(collection(sessionSnapshot.ref, 'sets'));
+        return {
+          metadata,
+          sets: setsSnapshot.docs.map((setDoc) => setDoc.data() as SessionSetRecord),
+          runLog: null,
+        };
+      }
+
+      const runLogSnapshot = await getDoc(doc(sessionSnapshot.ref, 'run_log', 'result'));
+      return {
+        metadata,
+        sets: [],
+        runLog: runLogSnapshot.exists() ? (runLogSnapshot.data() as RunLog) : null,
+      };
+    }));
+
+    return sessions.sort((a, b) => b.metadata.date.localeCompare(a.metadata.date));
+  },
+
   async getSets(userId: string, sessionId: string): Promise<SessionSetRecord[]> {
     const snapshot = await getDocs(collection(sessionRef(userId, sessionId), 'sets'));
     return snapshot.docs

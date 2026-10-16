@@ -13,3 +13,14 @@ export {
   runPaceSecondsPerKm,
   validatePositiveNumber,
 } from './records';
+export type {
+  HistoryDateFilter,
+  HistoryDisciplineFilter,
+  RecordedTrainingSession,
+  WeeklyTrainingSummary,
+} from './history';
+export {
+  computeWeeklyTrainingSummary,
+  filterTrainingHistory,
+  mondayOfDate,
+} from './history';

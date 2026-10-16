@@ -9,3 +9,4 @@ export { usePlan } from './usePlan';
 export type { PlanStatus, UsePlanResult } from './usePlan';
 export { useSessionSets } from './useSessionSets';
 export { useRunLog } from './useRunLog';
+export { useTrainingHistory } from './useTrainingHistory';

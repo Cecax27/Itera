@@ -4,7 +4,7 @@
 // - loading (auth inicial): spinner.
 // - sin sesión: LoginScreen.
 // - con sesión pero sin perfil: Onboarding (al terminar, genera plan).
-// - con sesión y perfil: stack principal con tabs (Hoy, Plan, Ajustes).
+// - con sesión y perfil: tabs principales (Hoy, Plan, Progreso) y Ajustes secundario.
 //
 // Detalle importante: usePlan() se llama una sola vez aquí; el plan
 // resultante se pasa como prop a las pantallas que lo necesitan. Si
@@ -23,6 +23,7 @@ import { useAuth, usePlan, useProfile } from '@/app/hooks';
 import { LoginScreen } from '@/app/screens/LoginScreen';
 import { OnboardingScreen } from '@/app/screens/OnboardingScreen';
 import { PlanScreen } from '@/app/screens/PlanScreen';
+import { ProgressScreen } from '@/app/screens/ProgressScreen';
 import { TodayScreen } from '@/app/screens/TodayScreen';
 import { SettingsScreen } from '@/app/screens/SettingsScreen';
 import { useThemeTokens } from '@/app/theme';
@@ -32,12 +33,13 @@ import { createFreeSessionRecordId, plannedSessionRecordId } from '@/domain/trai
 
 export type RootStackParamList = {
   Tabs: undefined;
+  Settings: undefined;
 };
 
 export type TabsParamList = {
   Hoy: undefined;
   Plan: undefined;
-  Settings: undefined;
+  Progreso: undefined;
 };
 
 const RootStack = createNativeStackNavigator<RootStackParamList>();
@@ -95,11 +97,23 @@ export function RootStackComponent() {
     );
   } else {
     content = (
-      <MainTabs
-        plan={plan}
-        onRegisterPlanned={openPlannedRegistration}
-        onRegisterFree={openFreeRegistration}
-      />
+      <RootStack.Navigator>
+        <RootStack.Screen name="Tabs" options={{ headerShown: false }}>
+          {({ navigation }) => (
+            <MainTabs
+              plan={plan}
+              onRegisterPlanned={openPlannedRegistration}
+              onRegisterFree={openFreeRegistration}
+              onOpenSettings={() => navigation.navigate('Settings')}
+            />
+          )}
+        </RootStack.Screen>
+        <RootStack.Screen
+          name="Settings"
+          component={SettingsScreen}
+          options={{ title: 'Ajustes', presentation: 'modal' }}
+        />
+      </RootStack.Navigator>
     );
   }
 
@@ -148,10 +162,12 @@ function MainTabs({
   plan,
   onRegisterPlanned,
   onRegisterFree,
+  onOpenSettings,
 }: {
   plan: Plan | null;
   onRegisterPlanned: (session: Session, date: string, day: WeekDay, index: number) => void;
   onRegisterFree: (date: string) => void;
+  onOpenSettings: () => void;
 }) {
   const tokens = useThemeTokens();
   return (
@@ -188,15 +204,16 @@ function MainTabs({
         {() => <PlanScreen plan={plan} onRegisterPlanned={onRegisterPlanned} onRegisterFree={onRegisterFree} />}
       </Tabs.Screen>
       <Tabs.Screen
-        name="Settings"
+        name="Progreso"
         options={{
-          title: 'Ajustes',
+          title: 'Progreso',
+          headerShown: false,
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="settings-outline" color={color} size={size} />
+            <Ionicons name="stats-chart-outline" color={color} size={size} />
           ),
         }}
       >
-        {() => <SettingsScreen />}
+        {() => <ProgressScreen plan={plan} onOpenSettings={onOpenSettings} />}
       </Tabs.Screen>
     </Tabs.Navigator>
   );
