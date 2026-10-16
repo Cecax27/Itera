@@ -14,6 +14,7 @@ import {
   initializeAuth,
 } from 'firebase/auth';
 import { connectFirestoreEmulator, Firestore, getFirestore } from 'firebase/firestore';
+import { connectFunctionsEmulator, Functions, getFunctions } from 'firebase/functions';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 // getReactNativePersistence solo existe en la build RN de @firebase/auth.
 // Firebase 13 lo selecciona automáticamente cuando el bundler aplica la
@@ -27,13 +28,16 @@ import { firebaseConfig } from './config';
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
+let functions: Functions | null = null;
 
 // Si EXPO_PUBLIC_USE_FIREBASE_EMULATOR es 'true', los singletons se conectan
 // a los emuladores locales en lugar del proyecto real.
 const USE_EMULATOR = process.env.EXPO_PUBLIC_USE_FIREBASE_EMULATOR === 'true';
 const EMULATOR_HOST = process.env.EXPO_PUBLIC_FIREBASE_EMULATOR_HOST ?? '127.0.0.1';
 const AUTH_EMULATOR_PORT = Number(process.env.EXPO_PUBLIC_FIREBASE_AUTH_EMULATOR_PORT ?? 9099);
-const FIRESTORE_EMULATOR_PORT = Number(process.env.EXPO_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_PORT ?? 8080);
+const FIRESTORE_EMULATOR_PORT = Number(process.env.EXPO_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_PORT ?? 8082);
+const FUNCTIONS_EMULATOR_PORT = Number(process.env.EXPO_PUBLIC_FIREBASE_FUNCTIONS_PORT ?? 5001);
+const FUNCTIONS_REGION = 'us-central1';
 
 function getApp(): FirebaseApp {
   if (!app) {
@@ -84,4 +88,14 @@ export function getDbInstance(): Firestore {
     }
   }
   return db;
+}
+
+export function getFunctionsInstance(): Functions {
+  if (!functions) {
+    functions = getFunctions(getApp(), FUNCTIONS_REGION);
+    if (USE_EMULATOR) {
+      connectFunctionsEmulator(functions, EMULATOR_HOST, FUNCTIONS_EMULATOR_PORT);
+    }
+  }
+  return functions;
 }

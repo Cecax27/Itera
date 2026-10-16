@@ -133,8 +133,8 @@ Con un solo usuario no se demuestra que funcione para todo el mercado, pero sí 
 - **Plataforma**: Android. No hay versión web por ahora.
 - **Framework móvil**: React Native con Expo (SDK 57, React 19.2, React Native 0.86).
 - **Cliente Firebase**: Firebase JS SDK oficial v13 (compatible con Expo Go).
-- **Backend y persistencia**: Firebase (Firestore como base de datos, Authentication para identidad).
-- **Estructura del proyecto**: archivos en la raíz del repo. No es monorepo.
+- **Backend y persistencia**: Firebase (Firestore, Authentication y Cloud Functions Node 22 para el asistente).
+- **Estructura del proyecto**: app móvil en la raíz y backend Firebase Functions en `functions/` como destino de despliegue separado; no es un monorepo de paquetes compartidos.
 - **applicationId Android**: `com.bitabit.itera`.
 - **Lenguaje**: TypeScript con `strict: true`.
 - **Path alias**: `@/*` apunta a `src/*`.
@@ -151,32 +151,13 @@ Tres capas:
 
 ```
 .
-├── app.json                  # Expo: nombre, slug, scheme, iconos, paquete Android
-├── index.ts                  # Entry point
-├── package.json              # Scripts: start, ios, android, web, typecheck, test, emulator
-├── tsconfig.json             # TS estricto, path alias @/* → src/*
-├── vitest.config.mts         # Vitest: node por defecto, jsdom opt-in
-├── vitest.setup.mts          # Setup global de tests
-├── .env.example              # Plantilla pública de variables Firebase
-├── assets/                   # Iconos y splash por defecto
+├── functions/                # Cloud Functions: OpenAI con claves por usuario
+├── index.ts                  # Entry point Expo
+├── firebase.json             # Firestore, Functions y emuladores
 └── src/
-    ├── App.tsx               # Raízona: SafeAreaProvider + RootStack
-    ├── app/                  # UI
-    │   ├── README.md
-    │   ├── components/       # Componentes reutilizables
-    │   ├── navigation/       # Stacks, tabs, drawers
-    │   │   └── RootStack.tsx
-    │   └── screens/
-    │       ├── TodayScreen.tsx     # Smoke test de Firebase (H0)
-    │       └── SettingsScreen.tsx
-    ├── domain/               # Lógica pura
-    │   ├── README.md
-    │   └── example.test.ts   # Test placeholder
-    └── infrastructure/
-        └── firebase/         # Único punto que importa de 'firebase/*'
-            ├── config.ts     # Lee EXPO_PUBLIC_* y valida
-            ├── client.ts     # Singleton + conectores de emulador
-            └── index.ts      # Re-exports públicos
+    ├── app/                  # Pantallas, navegación y hooks
+    ├── domain/               # Planificación, entrenamiento y asistente puros
+    └── infrastructure/       # Repositorios Firebase y adaptador LLM
 ```
 
 ### Tests
@@ -184,6 +165,8 @@ Tres capas:
 ```bash
 npm test            # ejecuta una vez
 npm run test:watch  # modo watch
+npm --prefix functions test       # pruebas del backend
+npm --prefix functions run build  # compila Functions
 ```
 
 Vitest corre en entorno `node` por defecto para tests de `src/domain/`. Los tests de UI marcan `// @vitest-environment jsdom` al inicio.
@@ -192,11 +175,11 @@ Vitest corre en entorno `node` por defecto para tests de `src/domain/`. Los test
 
 Si prefieres no tocar el proyecto `itera-4f63c` durante el desarrollo:
 
-1. Instala Firebase CLI: `npm install -g firebase-tools`.
-2. Crea un archivo `firebase.json` (cuando llegue el momento).
+1. Instala Firebase CLI y Java; instala las Functions: `npm install -g firebase-tools` y `npm --prefix functions install`.
+2. Configura la API key personal y el modelo desde Ajustes en la app; la clave se guarda en SecureStore.
 3. Ejecuta `npm run emulator` en una terminal.
-4. En tu `.env`, pon `EXPO_PUBLIC_USE_FIREBASE_EMULATOR=true`.
-5. Arranca la app con `npm start`. La app se conectará a `127.0.0.1` en lugar del proyecto real.
+4. En tu `.env`, pon `EXPO_PUBLIC_USE_FIREBASE_EMULATOR=true` y configura el host accesible por el teléfono.
+5. Arranca la app con `npm start`. Para desplegar Functions se requiere Firebase Blaze (`firebase deploy --only functions`).
 
 ---
 
@@ -204,8 +187,8 @@ Si prefieres no tocar el proyecto `itera-4f63c` durante el desarrollo:
 
 App Android con React Native + Expo SDK 57, Firebase y arquitectura de tres capas.
 
-**H0–H6 cerrados**: bootstrap, perfil y objetivos, planificación semanal, sesión del día, registro de resultados, historial y modo entrenamiento aislado. H4 conserva lo planificado separado de lo realizado; H5 añade resumen semanal e historial filtrable con opción de eliminar registros; H6 permite ejecutar y reanudar sesiones sin modificar el plan.
+**H0–H6 cerrados**: bootstrap, perfil y objetivos, planificación semanal, sesión del día, registro de resultados, historial y modo entrenamiento aislado. H4 conserva lo planificado separado de lo realizado; H5 añade resumen semanal e historial filtrable; H6 permite ejecutar y reanudar sesiones.
 
-El siguiente hito del roadmap es **H7 — Asistente que explica y adapta**. Consulta [`AGENTS.md`](./AGENTS.md) para las decisiones de arquitectura y pendientes globales.
+**H7 en curso**: asistente contextual con propuestas auditables y confirmación explícita. Cada usuario configura su API key/modelo en Ajustes; la clave vive en SecureStore del dispositivo y se envía temporalmente a Cloud Functions. Para llamadas reales falta desplegar Functions en un proyecto Firebase con Blaze. Consulta [`functions/README.md`](./functions/README.md).
 
 Consulta [`AGENTS.md`](./AGENTS.md) para las guías de trabajo específicas para agentes que desarrollen en este repo.

@@ -2,7 +2,18 @@
   "firestore": {
     "rules": "firestore.rules"
   },
+  "functions": {
+    "source": "functions",
+    "codebase": "default",
+    "ignore": ["node_modules", ".git", "firebase-debug.log", ".env"],
+    "predeploy": ["npm --prefix \"$RESOURCE_DIR\" run build"]
+  },
   "projects": {
     "default": "itera-4f63c"
+  },
+  "emulators": {
+    "auth": { "port": 9099 },
+    "firestore": { "port": 8082 },
+    "functions": { "port": 5001 }
   }
 }

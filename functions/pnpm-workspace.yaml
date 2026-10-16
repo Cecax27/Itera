@@ -1,0 +1,5 @@
+allowBuilds:
+  # @firebase/util genera el archivo de configuración opcional usado por el SDK.
+  '@firebase/util': true
+  # protobufjs comprueba compatibilidad de versión en su postinstall.
+  protobufjs: true

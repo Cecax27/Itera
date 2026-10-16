@@ -11,3 +11,5 @@ export { useSessionSets } from './useSessionSets';
 export { useRunLog } from './useRunLog';
 export { useTrainingHistory } from './useTrainingHistory';
 export { useActiveTrainingSession } from './useActiveTrainingSession';
+export { useAssistant } from './useAssistant';
+export { useAssistantSettings } from './useAssistantSettings';

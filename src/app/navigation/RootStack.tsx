@@ -24,6 +24,7 @@ import { LoginScreen } from '@/app/screens/LoginScreen';
 import { OnboardingScreen } from '@/app/screens/OnboardingScreen';
 import { PlanScreen } from '@/app/screens/PlanScreen';
 import { ProgressScreen } from '@/app/screens/ProgressScreen';
+import { AssistantScreen } from '@/app/screens/AssistantScreen';
 import { TodayScreen } from '@/app/screens/TodayScreen';
 import { SettingsScreen } from '@/app/screens/SettingsScreen';
 import { TrainingScreen } from '@/app/screens/TrainingScreen';
@@ -42,6 +43,7 @@ export type RootStackParamList = {
   Tabs: undefined;
   Settings: undefined;
   Training: { sessionId: string };
+  Assistant: { sessionId: string | null; initialQuestion: string | null };
 };
 
 export type TabsParamList = {
@@ -56,7 +58,7 @@ const Tabs = createBottomTabNavigator<TabsParamList>();
 export function RootStackComponent() {
   const { status: authStatus } = useAuth();
   const { status: profileStatus, profile, save } = useProfile();
-  const { plan, generateFromProfile } = usePlan();
+  const { plan, generateFromProfile, refresh: refreshPlan } = usePlan();
   const activeTrainingState = useActiveTrainingSession();
   const trainingHistory = useTrainingHistory();
   const tokens = useThemeTokens();
@@ -155,6 +157,10 @@ export function RootStackComponent() {
                 'No se pudo cerrar la sesión',
                 err instanceof Error ? err.message : 'Inténtalo de nuevo.',
               ))}
+              onAskAssistant={(sessionId, question) => navigation.navigate('Assistant', {
+                sessionId,
+                initialQuestion: question,
+              })}
               onStartPlanned={(session, date, day, index) => {
                 const sessionId = plannedSessionRecordId(plan?.weekStart ?? '', day, index);
                 const start = async () => {
@@ -217,6 +223,18 @@ export function RootStackComponent() {
                  void trainingHistory.refresh();
                }}
               onExit={() => navigation.goBack()}
+            />
+          )}
+        </RootStack.Screen>
+        <RootStack.Screen name="Assistant" options={{ headerShown: false, presentation: 'modal' }}>
+          {({ route, navigation }) => (
+            <AssistantScreen
+              key={`${route.params.sessionId ?? 'general'}_${route.params.initialQuestion ?? 'question'}`}
+              sessionId={route.params.sessionId}
+              initialQuestion={route.params.initialQuestion}
+              onClose={() => navigation.goBack()}
+              onOpenSettings={() => navigation.navigate('Settings')}
+              onPlanChanged={refreshPlan}
             />
           )}
         </RootStack.Screen>
@@ -283,6 +301,7 @@ function MainTabs({
   onStartPlanned,
   onResumeActive,
   onFinishIncomplete,
+  onAskAssistant,
 }: {
   plan: Plan | null;
   recordedSessions: readonly RecordedTrainingSession[];
@@ -298,6 +317,7 @@ function MainTabs({
   onStartPlanned: (session: Session, date: string, day: WeekDay, index: number) => void;
   onResumeActive: () => void;
   onFinishIncomplete: () => void;
+  onAskAssistant: (sessionId: string, question: string) => void;
 }) {
   const tokens = useThemeTokens();
   return (
@@ -333,6 +353,7 @@ function MainTabs({
             onStartPlanned={onStartPlanned}
             onResumeActive={onResumeActive}
             onFinishIncomplete={onFinishIncomplete}
+            onAskAssistant={onAskAssistant}
           />
         )}
       </Tabs.Screen>

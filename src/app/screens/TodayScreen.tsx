@@ -47,6 +47,7 @@ export interface TodayScreenProps {
   onStartPlanned: (session: Session, date: string, day: WeekDay, index: number) => void;
   onResumeActive: () => void;
   onFinishIncomplete: () => void;
+  onAskAssistant: (sessionId: string, question: string) => void;
   recordedSessions: readonly RecordedTrainingSession[];
   historyLoading: boolean;
   onRefreshHistory: () => Promise<void>;
@@ -61,6 +62,7 @@ export function TodayScreen({
   onStartPlanned,
   onResumeActive,
   onFinishIncomplete,
+  onAskAssistant,
   recordedSessions,
   historyLoading,
   onRefreshHistory,
@@ -146,6 +148,7 @@ export function TodayScreen({
         startLabel={activeThisSession ? 'Sesión en curso' : anotherSessionActive ? 'Sesión pendiente' : 'Empezar'}
         startDisabled={historyLoading || activeTrainingLoading || activeThisSession || anotherSessionActive}
         showRegister={!historyLoading && !activeTrainingLoading && !activeThisSession && !anotherSessionActive}
+        onAskAssistant={() => onAskAssistant(recordId, '¿Por qué me toca esta sesión?')}
         onStart={() => onStartPlanned(session, todayIso.slice(0, 10), day, index)}
         onRegister={() => onRegisterPlanned(session, todayIso.slice(0, 10), day, index)}
       />
@@ -179,6 +182,7 @@ function SessionCard({
   startLabel,
   startDisabled,
   showRegister,
+  onAskAssistant,
   onStart,
   onRegister,
 }: {
@@ -186,6 +190,7 @@ function SessionCard({
   startLabel: string;
   startDisabled: boolean;
   showRegister: boolean;
+  onAskAssistant: () => void;
   onStart: () => void;
   onRegister: () => void;
 }) {
@@ -225,6 +230,13 @@ function SessionCard({
           </Pressable>
         ) : null}
       </View>
+      <Pressable
+        onPress={onAskAssistant}
+        accessibilityRole="button"
+        style={sessionCardStyles.assistantAction}
+      >
+        <Text style={[sessionCardStyles.secondaryActionText, { color: tokens.colors.ink }]}>¿Por qué me toca esta sesión?</Text>
+      </Pressable>
     </Card>
   );
 }
@@ -322,6 +334,7 @@ const sessionCardStyles = StyleSheet.create({
     gap: 8,
     marginTop: 8,
   },
+  assistantAction: { minHeight: 44, justifyContent: 'center', alignItems: 'center', marginTop: 4 },
   secondaryAction: {
     flex: 1,
     minHeight: 48,

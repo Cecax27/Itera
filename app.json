@@ -21,6 +21,8 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       }
     },
-    "plugins": []
+    "plugins": [
+      "expo-secure-store"
+    ]
   }
 }

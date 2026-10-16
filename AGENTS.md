@@ -38,6 +38,7 @@ El objetivo central: **"Entrena con un propósito. Entiende tu progreso. Siempre
 ├── vitest.setup.mts          # Setup global de tests (vacío salvo stubs necesarios)
 ├── .env.example              # Variables públicas EXPO_PUBLIC_FIREBASE_* (plantilla, sí se commitea)
 ├── assets/                   # Iconos y splash por defecto
+├── functions/                # Firebase Functions Node 22; IA del lado servidor
 └── src/
     ├── App.tsx               # Componente raíz: monta SafeAreaProvider + RootStack
     ├── app/                  # Capa de UI (ver src/app/README.md)
@@ -45,13 +46,15 @@ El objetivo central: **"Entrena con un propósito. Entiende tu progreso. Siempre
     │   ├── components/       # Botones, tarjetas, campos y controles compartidos
     │   ├── navigation/       # Stacks, tabs, drawers, tipos de navegación
     │   │   └── RootStack.tsx # Auth, onboarding y tabs (Hoy, Plan, Progreso)
-    │   ├── screens/          # Hoy, Plan, Progreso, Ajustes, entrenamiento y registros
+    │   ├── screens/          # Hoy, Plan, Progreso, Ajustes, entrenamiento, asistente y registros
     │   └── hooks/            # Auth, perfil, plan, historial y estado de entrenamiento
     ├── domain/               # Lógica de negocio pura, sin React ni Firebase (ver src/domain/README.md)
     │   ├── planning/          # Motor del plan semanal y sesión del día
+    │   ├── assistant/         # Seguridad, fallback y contratos del asistente
     │   ├── training/          # RPE y modelos de resultados
     │   └── README.md         # Reglas de la capa domain
     └── infrastructure/       # Aísla dependencias externas del dominio
+        ├── llm/               # Cliente intercambiable del asistente
         └── firebase/         # Único punto de la app que importa 'firebase/*'
             ├── repositories/ # Auth, perfiles, planes y registros de sesión
             ├── config.ts     # Lee EXPO_PUBLIC_* y asegura que están todas
@@ -64,10 +67,11 @@ El objetivo central: **"Entrena con un propósito. Entiende tu progreso. Siempre
   - `domain/` no importa de `app`, `infrastructure`, React Native, Expo ni Firebase. TypeScript puro.
   - `app/` no importa de `firebase/*` directamente. Pasa por `infrastructure/`.
   - `infrastructure/` aísla el SDK concreto del resto del código.
+- **Backend de IA separado**: `functions/` es el único destino confiable para claves/llamadas OpenAI; secretos nunca en `EXPO_PUBLIC_*`. El cliente solo invoca callables autenticadas mediante `src/infrastructure/firebase/`.
 - **Variables de entorno públicas con prefijo `EXPO_PUBLIC_`**: las claves de Firebase son identificadores públicos (no secretos), así que pueden vivir en el bundle del cliente. `.env` está ignorado por `.gitignore`.
 - **Path alias `@/*` → `src/*`**: activado para imports limpios. Usar `@/infrastructure/firebase` en vez de rutas relativas largas.
 - **TypeScript estricto** en todo el código (`strict: true` en `tsconfig.json`).
-- **Emulador Firebase opcional**: con `EXPO_PUBLIC_USE_FIREBASE_EMULATOR=true` y `npm run emulator`, la app se conecta a los emuladores locales de Auth/Firestore. Por defecto está desactivado (apunta a `itera-4f63c`).
+- **Emulador Firebase opcional**: con `EXPO_PUBLIC_USE_FIREBASE_EMULATOR=true` y `npm run emulator`, la app se conecta a Auth/Firestore/Functions locales. Storage no se usa en el MVP. Requiere Firebase CLI, Java y `npm --prefix functions install`. Por defecto está desactivado (apunta a `itera-4f63c`).
 - **Tests con Vitest**: entorno `node` por defecto para dominio, `jsdom` opt-in para UI. Comandos `npm test` y `npm run test:watch`.
 - **Navegación con `@react-navigation/native`**: stack mínimo Hoy/Ajustes en H0, se sustituye en H3.
 
@@ -82,13 +86,20 @@ El objetivo central: **"Entrena con un propósito. Entiende tu progreso. Siempre
 - **H5** (Historial y análisis): `ProgressScreen` con resumen semanal compacto (km de carrera, volumen real de fuerza y adherencia), historial filtrable por disciplina y periodo, eliminación confirmada de registros; agregaciones puras en `src/domain/training/history.ts`; Ajustes pasa a acceso secundario. Sin gráficas en este alcance. ✅
 - **H6** (Modo entrenamiento aislado): `TrainingScreen` de fuerza y carrera; progreso y posición guardados en Firestore para pausar/reanudar; registro por serie, serie omitida sin datos inventados, overrides guardados como realizado y temporizador de descanso opcional. El plan original permanece intacto. ✅
 
+### H7 en curso
+
+- `AssistantScreen` contextual desde Hoy; cada usuario elige su API key/modelo en Ajustes. La key se guarda en Android SecureStore y se envía de forma transitoria a Firebase Functions.
+- Functions consulta perfil, plan e historial del uid autenticado, crea propuestas auditables y no modifica `plans/current` hasta aceptación explícita.
+- `planChanges` conserva snapshots anterior/propuesto, motivo, fuente, estado y fechas; las escrituras del cliente están bloqueadas en `firestore.rules`.
+- Hay fallback determinista y un filtro de seguridad en cliente/servidor. El código y las pruebas están listos; falta desplegar en Firebase Blaze y validar llamadas reales con una clave individual.
+
 ### Pendiente de definir (no inventar)
 
 - **Google Sign-In**: queda pendiente hasta que salgamos de Expo Go. Requiere build nativo (EAS Build + `@react-native-google-signin/google-signin` o `expo-auth-session`). En el `firebaseAuthRepository` ya está el método `signInWithGoogle` declarado (lanzando error claro) para que cuando se implemente solo cambie la implementación.
 - **Apple Sign-In**: mismo caso que Google, solo iOS. Pendiente.
 - **Política de edición del perfil después del onboarding** (libre, o campos congelados).
 - **Reglas de progresión reales** (subida de peso, aumento de km, periodización). El motor de H2 es una primera versión; en hitos siguientes o vía IA (H7) se afinan.
-- **Capa de IA**: cliente LLM, prompts, herramientas.
+- **Despliegue H7**: desplegar Functions en un proyecto con plan Blaze y validar el flujo con una API key personal; no configurar una clave global ni introducirla en Expo/Firestore.
 - **Tests de UI**: con `@testing-library/react-native` + jsdom.
 - **Migración de cuentas**: si en el futuro un usuario quiere cambiar de email, hay que decidir el flujo (¿vincular? ¿re-crear cuenta?).
 - **Plan editable**: la pantalla de plan es solo lectura. La edición manual (cambiar sesiones de día, añadir/quitar) llega en un hito posterior.
