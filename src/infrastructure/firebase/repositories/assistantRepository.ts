@@ -1,7 +1,18 @@
 import { httpsCallable } from 'firebase/functions';
 import { collection, getDocs, limit, orderBy, query } from 'firebase/firestore';
 
-import { AssistantAnswer, AssistantConversationTurn, AssistantModel, PlanChange, PlanChangeStatus } from '@/domain/assistant';
+import {
+  AssistantAnswer,
+  AssistantConversationTurn,
+  AssistantModel,
+  PlanChange,
+  PlanChangeStatus,
+} from '@/domain/assistant';
+import {
+  GeneratedPlanResult,
+  PlanBrief,
+  PlanBuilderRepository,
+} from '@/domain/planning';
 import { Plan } from '@/domain/planning';
 import { getDbInstance, getFunctionsInstance } from '../client';
 
@@ -11,6 +22,12 @@ interface AskAssistantRequest {
   conversation: readonly AssistantConversationTurn[];
   apiKey: string;
   model: string;
+}
+
+interface GeneratePlanRequest {
+  apiKey: string;
+  model: string;
+  brief: PlanBrief;
 }
 
 interface ResolvePlanChangeResponse {
@@ -31,6 +48,20 @@ export const firebaseAssistantRepository = {
 
   async ask(request: AskAssistantRequest): Promise<AssistantAnswer> {
     const callable = httpsCallable<AskAssistantRequest, AssistantAnswer>(getFunctionsInstance(), 'askAssistant');
+    const response = await callable(request);
+    return response.data;
+  },
+
+  /**
+   * Genera un plan borrador con la IA a partir del brief del asistente.
+   * No persiste nada: la aplicación del plan la confirma el usuario en
+   * el asistente de creación y la ejecuta el repositorio de planes.
+   */
+  async generateTrainingPlan(request: GeneratePlanRequest): Promise<GeneratedPlanResult> {
+    const callable = httpsCallable<GeneratePlanRequest, GeneratedPlanResult>(
+      getFunctionsInstance(),
+      'generateTrainingPlan',
+    );
     const response = await callable(request);
     return response.data;
   },

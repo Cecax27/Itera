@@ -63,6 +63,6 @@ export async function listAvailableModels(apiKey: string): Promise<Array<{ id: s
     .sort((a, b) => a.id.localeCompare(b.id));
 }
 
-function createOpenAIClient(apiKey: string): OpenAI {
+export function createOpenAIClient(apiKey: string): OpenAI {
   return new OpenAI({ apiKey, timeout: 45_000, maxRetries: 1 });
 }

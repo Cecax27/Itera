@@ -277,7 +277,7 @@ export function applyPlanOperations(
   return proposedPlan;
 }
 
-function normalizeSession(session: ModelSession) {
+export function normalizeSession(session: ModelSession) {
   if (session.discipline === 'running') {
     const { purpose, ...base } = session;
     return {
@@ -290,7 +290,7 @@ function normalizeSession(session: ModelSession) {
   return { ...base, ...(purpose === null ? {} : { purpose }) };
 }
 
-function normalizeRunBlock(block: ModelRunBlock) {
+export function normalizeRunBlock(block: ModelRunBlock) {
   const { paceSecondsPerKm, recoverySeconds, repetitions, ...base } = block;
   return {
     ...base,

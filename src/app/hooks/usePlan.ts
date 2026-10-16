@@ -18,6 +18,10 @@ export interface UsePlanResult {
   status: PlanStatus;
   plan: Plan | null;
   generateFromProfile: (profile: Profile) => Promise<Plan>;
+  /** Guarda el plan dado como plan activo (sustituye el actual). */
+  savePlan: (plan: Plan) => Promise<Plan>;
+  /** Elimina el plan activo. Los entrenamientos realizados no se tocan. */
+  deletePlan: () => Promise<void>;
   refresh: () => Promise<void>;
 }
 
@@ -65,10 +69,34 @@ export function usePlan(): UsePlanResult {
     [user],
   );
 
+  const savePlan = useCallback(
+    async (input: Plan): Promise<Plan> => {
+      if (!user) throw new Error('Cannot save plan: user not authenticated');
+      const normalized: Plan = input.id === CURRENT_PLAN_ID ? input : { ...input, id: CURRENT_PLAN_ID };
+      await firestorePlanRepository.save(user.id, normalized);
+      setPlan(normalized);
+      setStatus('ready');
+      return normalized;
+    },
+    [user],
+  );
+
+  const deletePlan = useCallback(async (): Promise<void> => {
+    if (!user) return;
+    await firestorePlanRepository.delete(user.id, CURRENT_PLAN_ID);
+    // Si el plan activo venía de la compatibilidad con IDs antiguos,
+    // nos aseguramos de borrar también ese documento.
+    if (plan && plan.id !== CURRENT_PLAN_ID) {
+      await firestorePlanRepository.delete(user.id, plan.id).catch(() => undefined);
+    }
+    setPlan(null);
+    setStatus('empty');
+  }, [user, plan]);
+
   const refresh = useCallback(async () => {
     if (!user) return;
     await load(user.id);
   }, [user, load]);
 
-  return { status, plan, generateFromProfile, refresh };
+  return { status, plan, generateFromProfile, savePlan, deletePlan, refresh };
 }

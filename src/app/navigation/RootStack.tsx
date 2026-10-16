@@ -19,6 +19,8 @@ import { useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 
 import { SessionRegistrationModal, SessionRegistrationTarget } from '@/app/screens/SessionRegistrationModal';
+import { SessionEditorModal, SessionEditorTarget, SessionEditPayload } from '@/app/screens/SessionEditorModal';
+import { PlanBuilderScreen } from '@/app/screens/PlanBuilderScreen';
 import { useActiveTrainingSession, useAuth, usePlan, useProfile, useTrainingHistory } from '@/app/hooks';
 import { LoginScreen } from '@/app/screens/LoginScreen';
 import { OnboardingScreen } from '@/app/screens/OnboardingScreen';
@@ -30,7 +32,7 @@ import { SettingsScreen } from '@/app/screens/SettingsScreen';
 import { TrainingScreen } from '@/app/screens/TrainingScreen';
 import { useThemeTokens } from '@/app/theme';
 import { Profile, WeekDay } from '@/domain/profile';
-import { mondayOf, Plan, Session } from '@/domain/planning';
+import { mondayOf, Plan, Session, editPlanSession } from '@/domain/planning';
 import {
   ActiveTrainingSession,
   createFreeSessionRecordId,
@@ -44,6 +46,7 @@ export type RootStackParamList = {
   Settings: undefined;
   Training: { sessionId: string };
   Assistant: { sessionId: string | null; initialQuestion: string | null };
+  PlanBuilder: undefined;
 };
 
 export type TabsParamList = {
@@ -58,11 +61,12 @@ const Tabs = createBottomTabNavigator<TabsParamList>();
 export function RootStackComponent() {
   const { status: authStatus } = useAuth();
   const { status: profileStatus, profile, save } = useProfile();
-  const { plan, generateFromProfile, refresh: refreshPlan } = usePlan();
+  const { plan, generateFromProfile, savePlan, deletePlan, refresh: refreshPlan } = usePlan();
   const activeTrainingState = useActiveTrainingSession();
   const trainingHistory = useTrainingHistory();
   const tokens = useThemeTokens();
   const [registrationTarget, setRegistrationTarget] = useState<SessionRegistrationTarget | null>(null);
+  const [sessionEditorTarget, setSessionEditorTarget] = useState<SessionEditorTarget | null>(null);
 
   function openPlannedRegistration(session: Session, date: string, day: WeekDay, index: number) {
     if (activeTrainingState.active?.progress.status === 'active' || activeTrainingState.active?.progress.status === 'paused') {
@@ -91,6 +95,53 @@ export function RootStackComponent() {
       source: 'free',
       plannedSession: null,
     });
+  }
+
+  function openSessionEditor(day: WeekDay, index: number) {
+    if (!plan) return;
+    const session = plan.sessions[day][index];
+    if (!session) return;
+    const occupiedDays = (Object.entries(plan.sessions) as [WeekDay, readonly unknown[]][])
+      .filter(([d, sessions]) => d !== day && sessions.length > 0)
+      .map(([d]) => d);
+    setSessionEditorTarget({ day, index, session, occupiedDays });
+  }
+
+  function applySessionEdit(day: WeekDay, index: number, edit: SessionEditPayload) {
+    if (!plan) return;
+    try {
+      const nextPlan = editPlanSession(plan, day, index, edit);
+      void savePlan(nextPlan).catch((err: unknown) => Alert.alert(
+        'No se pudo guardar el plan',
+        err instanceof Error ? err.message : 'Inténtalo de nuevo.',
+      ));
+    } catch (err) {
+      Alert.alert('Edición no válida', err instanceof Error ? err.message : 'Inténtalo de nuevo.');
+      return;
+    }
+    setSessionEditorTarget(null);
+  }
+
+  function removeSession(day: WeekDay, index: number) {
+    if (!plan) return;
+    try {
+      const nextPlan = editPlanSession(plan, day, index, {});
+      void savePlan(nextPlan).catch((err: unknown) => Alert.alert(
+        'No se pudo guardar el plan',
+        err instanceof Error ? err.message : 'Inténtalo de nuevo.',
+      ));
+    } catch (err) {
+      Alert.alert('Edición no válida', err instanceof Error ? err.message : 'Inténtalo de nuevo.');
+      return;
+    }
+    setSessionEditorTarget(null);
+  }
+
+  function deleteCurrentPlan() {
+    void deletePlan().catch((err: unknown) => Alert.alert(
+      'No se pudo eliminar el plan',
+      err instanceof Error ? err.message : 'Inténtalo de nuevo.',
+    ));
   }
 
   async function finishIncompleteTraining() {
@@ -163,6 +214,9 @@ export function RootStackComponent() {
                 sessionId,
                 initialQuestion: question,
               })}
+              onCreatePlan={() => navigation.navigate('PlanBuilder')}
+              onOpenSessionEditor={openSessionEditor}
+              onDeletePlan={deleteCurrentPlan}
               onStartPlanned={(session, date, day, index) => {
                 const sessionId = plannedSessionRecordId(mondayOf(date), day, index);
                 const start = async () => {
@@ -207,6 +261,16 @@ export function RootStackComponent() {
           component={SettingsScreen}
           options={{ title: 'Ajustes', presentation: 'modal' }}
         />
+        <RootStack.Screen name="PlanBuilder" options={{ headerShown: false, presentation: 'fullScreenModal' }}>
+          {({ navigation }) => (
+            <PlanBuilderScreen
+              profile={profile}
+              onApplyPlan={async (nextPlan) => { await savePlan(nextPlan); }}
+              onClose={() => navigation.goBack()}
+              onOpenSettings={() => navigation.navigate('Settings')}
+            />
+          )}
+        </RootStack.Screen>
         <RootStack.Screen name="Training" options={{ headerShown: false, gestureEnabled: false }}>
           {({ route, navigation }) => (
             <TrainingScreen
@@ -250,15 +314,24 @@ export function RootStackComponent() {
     <NavigationContainer theme={navTheme}>
       {content}
       {profile && (
-        <SessionRegistrationModal
-          key={registrationTarget?.sessionId ?? 'closed'}
-          target={registrationTarget}
-          onClose={() => setRegistrationTarget(null)}
-           onSaved={() => {
-             setRegistrationTarget(null);
-             void trainingHistory.refresh();
-           }}
-        />
+        <>
+          <SessionRegistrationModal
+            key={`registration_${registrationTarget?.sessionId ?? 'closed'}`}
+            target={registrationTarget}
+            onClose={() => setRegistrationTarget(null)}
+            onSaved={() => {
+              setRegistrationTarget(null);
+              void trainingHistory.refresh();
+            }}
+          />
+          <SessionEditorModal
+            key={`sessionEditor_${sessionEditorTarget ? `${sessionEditorTarget.day}_${sessionEditorTarget.index}` : 'closed'}`}
+            target={sessionEditorTarget}
+            onClose={() => setSessionEditorTarget(null)}
+            onSave={applySessionEdit}
+            onDelete={removeSession}
+          />
+        </>
       )}
     </NavigationContainer>
   );
@@ -304,6 +377,9 @@ function MainTabs({
   onResumeActive,
   onFinishIncomplete,
   onAskAssistant,
+  onCreatePlan,
+  onOpenSessionEditor,
+  onDeletePlan,
 }: {
   plan: Plan | null;
   recordedSessions: readonly RecordedTrainingSession[];
@@ -320,6 +396,9 @@ function MainTabs({
   onResumeActive: () => void;
   onFinishIncomplete: () => void;
   onAskAssistant: (sessionId: string, question: string) => void;
+  onCreatePlan: () => void;
+  onOpenSessionEditor: (day: WeekDay, index: number) => void;
+  onDeletePlan: () => void;
 }) {
   const tokens = useThemeTokens();
   return (
@@ -377,6 +456,9 @@ function MainTabs({
             historyLoading={historyLoading}
             onRefreshHistory={onRefreshHistory}
             activeTraining={activeTraining}
+            onCreatePlan={onCreatePlan}
+            onOpenSessionEditor={onOpenSessionEditor}
+            onDeletePlan={onDeletePlan}
           />
         )}
       </Tabs.Screen>

@@ -41,3 +41,26 @@ export type { WeekProgress, NextSession } from './today';
 
 export type { PlanHorizon } from './generator';
 export { weeksUntilMonday } from './generator';
+
+export type {
+  PlanBrief,
+  PlanFocus,
+  PlanFocusOption,
+  GeneratedPlanResult,
+  PlanBuilderRepository,
+} from './brief';
+
+export {
+  PLAN_FOCUS_OPTIONS,
+  MAX_BRIEF_NOTES_LENGTH,
+  validatePlanBrief,
+} from './brief';
+
+export type { PlanSessionEdit } from './edits';
+
+export {
+  editPlanSession,
+  removePlanSession,
+  movePlanSession,
+  replacePlanSession,
+} from './edits';

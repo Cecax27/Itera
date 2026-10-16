@@ -39,24 +39,27 @@ El objetivo central: **"Entrena con un propósito. Entiende tu progreso. Siempre
 ├── .env.example              # Variables públicas EXPO_PUBLIC_FIREBASE_* (plantilla, sí se commitea)
 ├── assets/                   # Iconos y splash por defecto
 ├── functions/                # Firebase Functions Node 22; IA del lado servidor
+│   ├── src/openai-assistant.ts # Llamadas al modelo (chat y modelos disponibles)
+│   ├── src/plan-builder.ts   # Generación de planes completos con IA (brief → plan)
+│   └── src/plan-change.ts    # Operaciones de plan y validaciones compartidas
 └── src/
     ├── App.tsx               # Componente raíz: monta SafeAreaProvider + RootStack
     ├── app/                  # Capa de UI (ver src/app/README.md)
     │   ├── README.md         # Reglas de la capa app
     │   ├── components/       # Botones, tarjetas, campos y controles compartidos
     │   ├── navigation/       # Stacks, tabs, drawers, tipos de navegación
-    │   │   └── RootStack.tsx # Auth, onboarding y tabs (Hoy, Plan, Progreso)
-    │   ├── screens/          # Hoy, Plan, Progreso, Ajustes, entrenamiento, asistente y registros
-    │   └── hooks/            # Auth, perfil, plan, historial y estado de entrenamiento
+    │   │   └── RootStack.tsx # Auth, onboarding, tabs (Hoy, Plan, Progreso), asistente y creador de plan
+    │   ├── screens/          # Hoy, Plan, Progreso, Ajustes, entrenamiento, asistente, creador de plan y registros
+    │   └── hooks/            # Auth, perfil, plan, plan-builder, historial y estado de entrenamiento
     ├── domain/               # Lógica de negocio pura, sin React ni Firebase (ver src/domain/README.md)
     │   ├── planning/          # Motor del plan (bloques multi-semana) y sesión del día
     │   ├── assistant/         # Seguridad, fallback y contratos del asistente
     │   ├── training/          # RPE y modelos de resultados
     │   └── README.md         # Reglas de la capa domain
     └── infrastructure/       # Aísla dependencias externas del dominio
-        ├── llm/               # Cliente intercambiable del asistente
+        ├── llm/               # Clientes intercambiables: chat del asistente y plan-builder
         └── firebase/         # Único punto de la app que importa 'firebase/*'
-            ├── repositories/ # Auth, perfiles, planes y registros de sesión
+            ├── repositories/ # Auth, perfiles, planes (guardar/borrar) y registros de sesión
             ├── config.ts     # Lee EXPO_PUBLIC_* y asegura que están todas
             └── client.ts     # Singleton Firebase + conectores de emulador
 ```
@@ -87,6 +90,7 @@ El objetivo central: **"Entrena con un propósito. Entiende tu progreso. Siempre
 - **H6** (Modo entrenamiento aislado): `TrainingScreen` de fuerza y carrera; progreso y posición guardados en Firestore para pausar/reanudar; registro por serie, serie omitida sin datos inventados, overrides guardados como realizado y temporizador de descanso opcional. El plan original permanece intacto. ✅
 
 - **H7** (Asistente que explica y adapta): `AssistantScreen` contextual desde Hoy; cada usuario elige su API key/modelo en Ajustes (Android SecureStore, nunca en Firestore) y las Functions desplegadas la usan de forma transitoria. Functions lee perfil, plan e historial del uid autenticado, propone cambios auditables y no modifica `plans/current` hasta aceptación explícita. `planChanges` conserva snapshots anterior/propuesto, motivo, fuente, estado y fechas; sus escrituras están bloqueadas al cliente en `firestore.rules`. Hay fallback determinista y filtro de seguridad en cliente y servidor. ✅
+- **H8** (Crear plan con la IA y editar el plan): asistente de creación guiada `PlanBuilderScreen` (7 pasos: intro, objetivo, días/experiencia, disponibilidad, equipamiento, notas, revisión), lanzable desde Plan en cualquier momento y precargado con los datos del perfil (editables solo para ese plan). El callable `generateTrainingPlan` (Functions) envía el brief + contexto deportivo al modelo con salida estructurada, valida el plan de la IA con las reglas del motor (schema + coherencia semanal + disponibilidad) y devuelve un borrador; nada toca `plans/current`. El usuario previsualiza (explicación, warnings, aviso de seguridad, suposiciones) y solo al pulsar "Usar este plan" se sustituye el plan actual; los entrenamientos realizados no se tocan y no se guarda historial de planes anteriores (decisión del propietario). También: botón "Nuevo plan con IA" y estado vacío en Plan, borrado del plan completo (con confirmación), y edición de sesiones individuales (`SessionEditorModal` + operaciones puras `editPlanSession`): editar contenido (series, reps, peso, descansos, bloques, propósito) y mover a otro día libre o eliminar. Los pasos de disponibilidad y equipamiento se extrajeron a `WeekAvailabilityEditor` y `EquipmentChecklist` para reutilizarlos en onboarding y asistente. ✅
 
 - **Plan multi-semana (extensión de H2/H7)**: el `Plan` ya no es una semana suelta sino un **bloque** (`Plan.weeks[]`, cada semana con su `weekStart` y sus sesiones; `Plan.goalDate` opcional). Hoy/Plan/Progreso resuelven la semana que contiene la fecha actual; `PlanScreen` tiene selector de semanas. El motor (`generatePlan` con `PlanHorizon`) y el servidor (`functions/src/plan-block.ts`, espejo determinista) materializan bloques con progresión conservadora: volumen de carrera +5%/semana (tope +30%), descarga cada 4ª semana (×0.8) y descarga final (×0.7); la fuerza no cambia con la progresión de volumen. El asistente ahora tiene dos tipos de propuesta: `kind: 'operations'` (ajustes puntuales, con campo `week` para apuntar a cualquier semana del bloque) y `kind: 'block'` (el modelo solo fija el horizonte — `weeks` 2–26 y/o `goalDate` — y el servidor construye las semanas). Los planes y propuestas antiguos (una sola semana con `sessions` por día) se normalizan al vuelo (`normalizePlan` en cliente, `parsePlanRecord` en Functions). ✅
 
@@ -99,7 +103,7 @@ El objetivo central: **"Entrena con un propósito. Entiende tu progreso. Siempre
 - **Validación H7 en uso**: confirmar que las propuestas del asistente son claras, aplicables y seguras con datos reales; ajustar prompts o modelo si hace falta.
 - **Tests de UI**: con `@testing-library/react-native` + jsdom.
 - **Migración de cuentas**: si en el futuro un usuario quiere cambiar de email, hay que decidir el flujo (¿vincular? ¿re-crear cuenta?).
-- **Plan editable**: la pantalla de plan es solo lectura. La edición manual (cambiar sesiones de día, añadir/quitar) llega en un hito posterior.
+- **Plan editable**: la edición básica (editar contenido, mover y eliminar sesiones; borrar el plan) llegó en H8. La reasignación automática por el motor (recortar/regenerar al cambiar disponibilidad) y la edición en bloque siguen abiertas.
 - **Manejo de fallos del motor**: si el motor no puede asignar respetando restricciones, hoy recorta strength. Idealmente registramos warnings o ajustamos el número de sesiones.
 
 ## Arquitectura conceptual obligatoria

@@ -8,7 +8,16 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Button, Card, Chip, Screen as ScreenLayout, TextField } from '@/app/components';
+import {
+  Button,
+  Card,
+  Chip,
+  EquipmentChecklist,
+  Screen as ScreenLayout,
+  TextField,
+  WeekAvailabilityEditor,
+  dayLabel as weekDayLabel,
+} from '@/app/components';
 import { FadeIn } from '@/app/animations';
 import {
   ALL_EQUIPMENT,
@@ -380,79 +389,15 @@ interface AvailabilityProps {
 }
 
 function AvailabilityStep({ availability, setAvailability }: AvailabilityProps) {
-  const tokens = useThemeTokens();
   return (
     <View>
-      <Text style={[stepText.body, { color: tokens.colors.textSecondary }]}>
-        Indica las franjas en las que puedes entrenar cada día. Si un día no tienes tiempo, déjalo vacío.
-      </Text>
-      {ALL_WEEK_DAYS.map((day) => (
-        <DayRow
-          key={day}
-          day={day}
-          slots={availability[day]}
-          onChange={(slots) => setAvailability({ ...availability, [day]: slots })}
-        />
-      ))}
+      <WeekAvailabilityEditor
+        availability={availability}
+        onChange={setAvailability}
+        helper="Indica las franjas en las que puedes entrenar cada día. Si un día no tienes tiempo, déjalo vacío."
+      />
     </View>
   );
-}
-
-function DayRow({
-  day,
-  slots,
-  onChange,
-}: {
-  day: typeof ALL_WEEK_DAYS[number];
-  slots: ReturnType<typeof emptyAvailability>[typeof ALL_WEEK_DAYS[number]];
-  onChange: (slots: ReturnType<typeof emptyAvailability>[typeof ALL_WEEK_DAYS[number]]) => void;
-}) {
-  const tokens = useThemeTokens();
-  const addSlot = () => onChange([...slots, { start: '08:00', end: '09:00' }]);
-  const updateSlot = (i: number, patch: Partial<{ start: string; end: string }>) =>
-    onChange(slots.map((s, j) => (i === j ? { ...s, ...patch } : s)));
-  const removeSlot = (i: number) => onChange(slots.filter((_, j) => j !== i));
-
-  return (
-    <Card padding="sm" style={dayRowStyles.card}>
-      <Text style={[dayRowStyles.dayLabel, { color: tokens.colors.ink }]}>{dayLabel(day)}</Text>
-      {slots.map((slot, i) => (
-        <View key={i} style={dayRowStyles.slotRow}>
-          <TextField value={slot.start} onChangeText={(t) => updateSlot(i, { start: t })} placeholder="HH:mm" />
-          <Text style={[dayRowStyles.slotSep, { color: tokens.colors.textSecondary }]}>a</Text>
-          <TextField value={slot.end} onChangeText={(t) => updateSlot(i, { end: t })} placeholder="HH:mm" />
-          <Pressable onPress={() => removeSlot(i)} style={dayRowStyles.removeButton}>
-            <Text style={[dayRowStyles.removeText, { color: tokens.colors.error }]}>×</Text>
-          </Pressable>
-        </View>
-      ))}
-      <Pressable onPress={addSlot}>
-        <Text style={[dayRowStyles.add, { color: tokens.colors.ink }]}>+ Añadir franja</Text>
-      </Pressable>
-    </Card>
-  );
-}
-
-const dayRowStyles = StyleSheet.create({
-  card: { marginBottom: 8 },
-  dayLabel: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
-  slotRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  slotSep: { fontSize: 14 },
-  removeButton: { paddingHorizontal: 4, paddingVertical: 8 },
-  removeText: { fontSize: 18 },
-  add: { fontSize: 13, textDecorationLine: 'underline', marginTop: 4 },
-});
-
-function dayLabel(day: typeof ALL_WEEK_DAYS[number]): string {
-  switch (day) {
-    case 'mon': return 'Lunes';
-    case 'tue': return 'Martes';
-    case 'wed': return 'Miércoles';
-    case 'thu': return 'Jueves';
-    case 'fri': return 'Viernes';
-    case 'sat': return 'Sábado';
-    case 'sun': return 'Domingo';
-  }
 }
 
 interface EquipmentProps {
@@ -461,63 +406,15 @@ interface EquipmentProps {
 }
 
 function EquipmentStep({ equipment, setEquipment }: EquipmentProps) {
-  const tokens = useThemeTokens();
   return (
     <View>
-      <Text style={[stepText.body, { color: tokens.colors.textSecondary }]}>
-        ¿Con qué equipamiento cuentas?
-      </Text>
-      {ALL_EQUIPMENT.map((id) => (
-        <Pressable
-          key={id}
-          style={[equipmentStyles.row, { borderBottomColor: tokens.colors.border }]}
-          onPress={() => setEquipment({ ...equipment, [id]: !equipment[id] })}
-        >
-          <View
-            style={[
-              equipmentStyles.checkbox,
-              { borderColor: tokens.colors.ink },
-              equipment[id] && { backgroundColor: tokens.colors.accent, borderColor: tokens.colors.accent },
-            ]}
-          >
-            {equipment[id] && <Text style={[equipmentStyles.checkmark, { color: tokens.colors.accentInk }]}>✓</Text>}
-          </View>
-          <Text style={[equipmentStyles.label, { color: tokens.colors.ink }]}>
-            {equipmentLabel(id)}
-          </Text>
-        </Pressable>
-      ))}
+      <EquipmentChecklist
+        equipment={equipment}
+        onChange={setEquipment}
+        helper="¿Con qué equipamiento cuentas?"
+      />
     </View>
   );
-}
-
-const equipmentStyles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, borderBottomWidth: 1 },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderWidth: 2,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkmark: { fontSize: 14, fontWeight: '700' },
-  label: { fontSize: 15 },
-});
-
-function equipmentLabel(id: typeof ALL_EQUIPMENT[number]): string {
-  switch (id) {
-    case 'dumbbells': return 'Mancuernas';
-    case 'barbell': return 'Barra';
-    case 'kettlebell': return 'Kettlebell';
-    case 'resistance_bands': return 'Bandas de resistencia';
-    case 'pull_up_bar': return 'Barra de dominadas';
-    case 'bench': return 'Banco';
-    case 'squat_rack': return 'Rack de sentadillas';
-    case 'treadmill': return 'Cinta de correr';
-    case 'outdoor_running_route': return 'Ruta al aire libre';
-    case 'stationary_bike': return 'Bicicleta estática';
-  }
 }
 
 interface RestrictionsProps {

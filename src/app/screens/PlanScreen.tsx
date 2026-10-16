@@ -4,8 +4,7 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-
+import { Pressable, StyleSheet, Text, View, Alert } from 'react-native';
 import { Button, Card, RecordedSessionCard, Screen as ScreenLayout } from '@/app/components';
 import { FadeIn } from '@/app/animations';
 import { Ionicons } from '@expo/vector-icons';
@@ -42,6 +41,12 @@ export interface PlanScreenProps {
   historyLoading: boolean;
   onRefreshHistory: () => Promise<void>;
   activeTraining: ActiveTrainingSession | null;
+  /** Abre el asistente de creación de plan con IA. */
+  onCreatePlan: () => void;
+  /** Abre el editor de una sesión concreta. */
+  onOpenSessionEditor: (day: WeekDay, index: number) => void;
+  /** Elimina el plan completo (con confirmación previa). */
+  onDeletePlan: () => void;
 }
 
 export function PlanScreen({
@@ -52,6 +57,9 @@ export function PlanScreen({
   historyLoading,
   onRefreshHistory,
   activeTraining,
+  onCreatePlan,
+  onOpenSessionEditor,
+  onDeletePlan,
 }: PlanScreenProps) {
   const tokens = useThemeTokens();
   const styles = makeStyles(tokens);
@@ -79,16 +87,25 @@ export function PlanScreen({
     return (
       <ScreenLayout scroll>
         <View style={styles.empty}>
-          <Text style={styles.emptyTitle}>Aún no hay plan generado.</Text>
+          <Text style={styles.emptyTitle}>Aún no tienes plan.</Text>
           <Text style={styles.emptyBody}>
-            El primer plan se genera automáticamente al completar el onboarding.
+            Crea uno con la IA contándole tu objetivo, tus días y tu material.
+          </Text>
+          <Text style={styles.emptyBody}>
+            El registro de entrenamientos ya realizados no se verá afectado.
           </Text>
         </View>
+        <Button
+          label="Crear plan con IA"
+          onPress={onCreatePlan}
+          variant="primary"
+        />
         <Button
           label="Registrar sesión libre"
           onPress={() => onRegisterFree(new Date().toISOString().slice(0, 10))}
           variant="secondary"
           disabled={historyLoading || Boolean(activeTraining && ['active', 'paused'].includes(activeTraining.progress.status))}
+          style={styles.freeSessionButton}
         />
       </ScreenLayout>
     );
@@ -97,6 +114,17 @@ export function PlanScreen({
   const week = plan.weeks[clampedIndex] ?? plan.weeks[0];
   const todayDate = todayIso;
   const goalLabel = plan.goalDate ? formatDateLabel(plan.goalDate) : null;
+
+  const confirmDeletePlan = () => {
+    Alert.alert(
+      'Eliminar plan',
+      'Se eliminará el plan semanal completo. Los entrenamientos que ya registraste se conservan.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Eliminar plan', style: 'destructive', onPress: onDeletePlan },
+      ],
+    );
+  };
 
   return (
     <ScreenLayout scroll>
@@ -122,6 +150,12 @@ export function PlanScreen({
             <Text style={styles.goalLabel}>Objetivo: {goalLabel}</Text>
           ) : null}
         </View>
+        <Button
+          label="Nuevo plan con IA"
+          onPress={onCreatePlan}
+          variant="primary"
+          style={styles.createPlanButton}
+        />
       </FadeIn>
 
       {ALL_WEEK_DAYS.map((day, i) => {
@@ -157,6 +191,7 @@ export function PlanScreen({
                     activeTraining={activeTraining}
                     historyLoading={historyLoading}
                     onRegister={() => onRegisterPlanned(session, dateForWeekDay(week.weekStart, day), day, j)}
+                    onEdit={() => onOpenSessionEditor(day, j)}
                   />
                 ))
               )}
@@ -170,6 +205,12 @@ export function PlanScreen({
         variant="secondary"
         disabled={historyLoading || Boolean(activeTraining && ['active', 'paused'].includes(activeTraining.progress.status))}
         style={styles.freeSessionButton}
+      />
+      <Button
+        label="Eliminar plan"
+        onPress={confirmDeletePlan}
+        variant="ghost"
+        style={styles.deletePlanButton}
       />
     </ScreenLayout>
   );
@@ -238,6 +279,7 @@ function PlannedSessionCard({
   activeTraining,
   historyLoading,
   onRegister,
+  onEdit,
 }: {
   session: Session;
   weekStart: string;
@@ -247,6 +289,7 @@ function PlannedSessionCard({
   activeTraining: ActiveTrainingSession | null;
   historyLoading: boolean;
   onRegister: () => void;
+  onEdit: () => void;
 }) {
   const tokens = useThemeTokens();
   const currentSessionId = plannedSessionRecordId(weekStart, day, index);
@@ -268,12 +311,23 @@ function PlannedSessionCard({
     <SessionCard
       session={session}
       onRegister={onRegister}
+      onEdit={onEdit}
       disabled={historyLoading || Boolean(activeTraining && ['active', 'paused'].includes(activeTraining.progress.status))}
     />
   );
 }
 
-function SessionCard({ session, onRegister, disabled }: { session: Session; onRegister: () => void; disabled: boolean }) {
+function SessionCard({
+  session,
+  onRegister,
+  onEdit,
+  disabled,
+}: {
+  session: Session;
+  onRegister: () => void;
+  onEdit: () => void;
+  disabled: boolean;
+}) {
   const tokens = useThemeTokens();
   return (
     <Card
@@ -310,6 +364,12 @@ function SessionCard({ session, onRegister, disabled }: { session: Session; onRe
         disabled={disabled}
         style={sessionCardStyles.registerButton}
       />
+      <Button
+        label="Editar sesión"
+        onPress={onEdit}
+        variant="ghost"
+        style={sessionCardStyles.editButton}
+      />
     </Card>
   );
 }
@@ -330,6 +390,7 @@ const sessionCardStyles = StyleSheet.create({
   title: { fontSize: 17, fontWeight: '600', marginBottom: 4 },
   detail: { fontSize: 13, lineHeight: 18 },
   registerButton: { marginTop: 12 },
+  editButton: { marginTop: 4 },
 });
 
 function sessionTitle(session: Session): string {
@@ -449,6 +510,8 @@ function makeStyles(tokens: ReturnType<typeof useThemeTokens>) {
       color: tokens.colors.textSecondary,
       textAlign: 'center',
     },
-    freeSessionButton: { marginTop: tokens.spacing.lg, marginBottom: tokens.spacing.xl },
+    freeSessionButton: { marginTop: tokens.spacing.lg, marginBottom: tokens.spacing.xs },
+    createPlanButton: { marginTop: tokens.spacing.md },
+    deletePlanButton: { marginTop: tokens.spacing.md, marginBottom: tokens.spacing.xl },
   });
 }

@@ -10,3 +10,5 @@ export { TextField } from './TextField';
 export type { TextFieldProps } from './TextField';
 export { RecordedSessionCard } from './RecordedSessionCard';
 export type { RecordedSessionCardProps } from './RecordedSessionCard';
+export { WeekAvailabilityEditor, dayLabel } from './WeekAvailabilityEditor';
+export { EquipmentChecklist, equipmentLabel } from './EquipmentChecklist';

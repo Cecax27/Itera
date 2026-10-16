@@ -12,8 +12,14 @@ import {
   PlanRecord,
   validatePlanCoherence,
   WeekDay,
+  WEEK_DAYS
 } from './plan-change';
 import { buildPlanBlock } from './plan-block';
+import { assembleDraftPlan, 
+  loadPlanBuilderContext, 
+  mondayOfIso, 
+  PlanBriefSchema, 
+  requestGeneratedPlan } from './plan-builder';
 import { detectSafetySignal, safetyReply } from './safety';
 import { listAvailableModels, requestAssistantResponse } from './openai-assistant';
 
@@ -149,6 +155,92 @@ export const askAssistant = onCall(
     }
   },
 );
+
+export const generateTrainingPlan = onCall(
+  {
+    region: REGION,
+    timeoutSeconds: 90,
+    memory: '512MiB',
+    maxInstances: 2,
+  },
+  async (request) => {
+    const userId = request.auth?.uid;
+    if (!userId) throw new HttpsError('unauthenticated', 'Inicia sesión para crear un plan.');
+
+    const apiKey = typeof request.data?.apiKey === 'string' ? request.data.apiKey.trim() : '';
+    const model = typeof request.data?.model === 'string' ? request.data.model.trim() : '';
+    if (!apiKey || apiKey.length > 500 || !model || model.length > 200) {
+      throw new HttpsError('failed-precondition', 'Configura una API key de OpenAI y un modelo en Ajustes.');
+    }
+
+    const brief = PlanBriefSchema.safeParse(request.data?.brief);
+    if (!brief.success) {
+      throw new HttpsError('invalid-argument', 'Los datos del asistente no son válidos; revisa el objetivo y la disponibilidad.');
+    }
+
+    // Seguridad: señal grave en el objetivo o las notas bloquea la generación.
+    const safetyText = `${brief.data.objective.description} ${brief.data.objective.target ?? ''} ${brief.data.notes ?? ''}`;
+    const urgentSignal = detectSafetySignal(safetyText);
+    if (urgentSignal && urgentSignal.severity === 'urgent') {
+      throw new HttpsError(
+        'failed-precondition',
+        safetyReply(urgentSignal).text,
+      );
+    }
+
+    try {
+      const context = await loadPlanBuilderContext(db, userId);
+      const nowIso = new Date().toISOString();
+
+      const output = await requestGeneratedPlan(apiKey, model, {
+        brief: brief.data,
+        context,
+        generatedAt: nowIso,
+      });
+
+      const profileExperience = typeof context.profile.experience === 'string'
+        ? context.profile.experience
+        : null;
+      const draft = assembleDraftPlan(output, {
+        brief: brief.data,
+        // assembleDraftPlan usa brief.availability si viene; si no, la del perfil.
+        profileAvailability: normalizeProfileAvailability(context.profile),
+        profileExperience,
+        now: () => nowIso,
+        mondayOf: mondayOfIso,
+      });
+
+      return {
+        plan: draft.plan,
+        explanation: draft.explanation,
+        knownFacts: draft.knownFacts,
+        assumptions: draft.assumptions,
+        warnings: draft.warnings,
+        safetyNotice: urgentSignal
+          ? 'Mencionas molestias o limitaciones: el plan las respeta, pero no sustituye a un profesional sanitario. Si el dolor persiste o agrava, consulta antes de retomar.'
+          : null,
+        source: 'engine' as const,
+      };
+    } catch (err) {
+      logger.error('Falló generateTrainingPlan; el plan actual no se modifica.', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw new HttpsError('unavailable', 'No se pudo generar el plan ahora. Tu plan actual no ha cambiado.');
+    }
+  },
+);
+
+function normalizeProfileAvailability(
+  profile: Record<string, unknown>,
+): Record<WeekDay, readonly unknown[]> {
+  const value = profile.availability;
+  const result = {} as Record<WeekDay, readonly unknown[]>;
+  for (const day of WEEK_DAYS) {
+    const slots = (value as Record<string, unknown> | undefined)?.[day];
+    result[day] = Array.isArray(slots) ? slots : [];
+  }
+  return result;
+}
 
 export const testOpenAIConnection = onCall(
   { region: REGION, timeoutSeconds: 25, maxInstances: 2 },

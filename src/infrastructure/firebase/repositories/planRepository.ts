@@ -3,7 +3,7 @@
 // Estructura: users/{userId}/plans/{planId}
 // El planId lo genera el cliente y se incluye en el Plan.id, por simplicidad.
 
-import { collection, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
 
 import { normalizePlan, Plan } from '@/domain/planning';
 
@@ -31,5 +31,13 @@ export const firestorePlanRepository = {
 
   async save(userId: string, plan: Plan): Promise<void> {
     await setDoc(planDocRef(userId, plan.id), plan);
+  },
+
+  /**
+   * Elimina el plan activo. El registro de entrenamientos ya realizados
+   * vive en users/{uid}/sessions y no se toca.
+   */
+  async delete(userId: string, planId: string): Promise<void> {
+    await deleteDoc(planDocRef(userId, planId));
   },
 };

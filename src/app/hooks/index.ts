@@ -13,3 +13,5 @@ export { useTrainingHistory } from './useTrainingHistory';
 export { useActiveTrainingSession } from './useActiveTrainingSession';
 export { useAssistant } from './useAssistant';
 export { useAssistantSettings } from './useAssistantSettings';
+export { usePlanBuilder } from './usePlanBuilder';
+export type { UsePlanBuilderResult } from './usePlanBuilder';

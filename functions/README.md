@@ -1,6 +1,13 @@
 # Firebase Functions — Itera
 
-Las llamadas al proveedor de IA se ejecutan en Cloud Functions. Cada usuario introduce su propia API key en Ajustes; la app la guarda en Android SecureStore, asociada a su uid y a ese dispositivo, y la envía de forma transitoria a la Function. No se almacena en Firestore, Secret Manager ni en variables `EXPO_PUBLIC_*`. En otros dispositivos debe configurarse de nuevo.
+Las llamadas al proveedor de IA se ejecutan en Cloud Functions. El backend expone varios callables autenticados:
+
+- `askAssistant` — chat contextual (H7): lee perfil, plan e historial, responde y guarda propuestas auditables en `planChanges` sin tocar el plan.
+- `generateTrainingPlan` — creador de planes (H8): recibe el brief del asistente guiado (objetivo, días, disponibilidad capturada así, equipamiento, experiencia, reparto deseado y notas), completa el contexto con perfil, plan actual y últimos entrenamientos, y pide al modelo un plan semanal completo con salida estructurada. El borrador se normaliza y valida contra `CurrentPlanSchema` y la coherencia semanal (solo días disponibles, máximo una sesión por día, sin fuerza en días consecutivos ni carrera tras fuerza intensa). Devuelve el plan draft con explicación, avisos y suposiciones; **no modifica `plans/current`**: la app lo previsualiza y solo lo persiste si el usuario confirma.
+- `testOpenAIConnection` — comprueba la API key y lista los modelos de texto disponibles.
+- `resolvePlanChange` — acepta o rechaza una propuesta del asistente de chat en una transacción.
+
+Cada usuario introduce su propia API key en Ajustes; la app la guarda en Android SecureStore, asociada a su uid y a ese dispositivo, y la envía de forma transitoria a la Function. No se almacena en Firestore, Secret Manager ni en variables `EXPO_PUBLIC_*`. En otros dispositivos debe configurarse de nuevo.
 
 ## Desarrollo local
 
