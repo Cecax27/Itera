@@ -42,20 +42,20 @@ El objetivo central: **"Entrena con un propósito. Entiende tu progreso. Siempre
     ├── App.tsx               # Componente raíz: monta SafeAreaProvider + RootStack
     ├── app/                  # Capa de UI (ver src/app/README.md)
     │   ├── README.md         # Reglas de la capa app
-    │   ├── components/       # Componentes reutilizables (vacío por ahora)
+    │   ├── components/       # Botones, tarjetas, campos y controles compartidos
     │   ├── navigation/       # Stacks, tabs, drawers, tipos de navegación
-    │   │   └── RootStack.tsx # Stack raíz con dos pantallas (Hoy, Ajustes)
-    │   └── screens/          # Pantallas
-    │       ├── TodayScreen.tsx     # Smoke test de Firebase (H0)
-    │       └── SettingsScreen.tsx  # Placeholder (H1)
+    │   │   └── RootStack.tsx # Auth, onboarding y tabs (Hoy, Plan, Ajustes)
+    │   ├── screens/          # Hoy, Plan, Ajustes, onboarding y registro H4
+    │   └── hooks/            # Hooks de auth, perfil, plan y resultados
     ├── domain/               # Lógica de negocio pura, sin React ni Firebase (ver src/domain/README.md)
-    │   ├── README.md         # Reglas de la capa domain
-    │   └── example.test.ts   # Test placeholder para validar Vitest
+    │   ├── planning/          # Motor del plan semanal y sesión del día
+    │   ├── training/          # RPE y modelos de resultados
+    │   └── README.md         # Reglas de la capa domain
     └── infrastructure/       # Aísla dependencias externas del dominio
         └── firebase/         # Único punto de la app que importa 'firebase/*'
+            ├── repositories/ # Auth, perfiles, planes y registros de sesión
             ├── config.ts     # Lee EXPO_PUBLIC_* y asegura que están todas
-            ├── client.ts     # Singleton Firebase + conectores de emulador (Auth, Firestore)
-            └── index.ts      # Re-exports públicos del módulo
+            └── client.ts     # Singleton Firebase + conectores de emulador
 ```
 
 ### Principios de arquitectura ya implementados
@@ -78,6 +78,7 @@ El objetivo central: **"Entrena con un propósito. Entiende tu progreso. Siempre
 - **Auth real con email y contraseña** (extensión de H1): módulo `src/domain/auth/`, `firebaseAuthRepository`, hook `useAuth`, `LoginScreen`, navegación enruta por estado de auth. 13 tests del auth. ✅
 - **H2** (Plan semanal): dominio `src/domain/planning/` con tipos y motor puro (18 tests), `firestorePlanRepository` en `users/{uid}/plans/current`, `usePlan` hook, `PlanScreen` con bottom-tabs, generación automática al terminar el onboarding. ✅
 - **H3** (Sesión del día, primera cara): `weekDayOf`, `getTodaySessions`, `getNextSession`, `computeWeekProgress` (10 tests); `TodayScreen` con encabezado + sesión + descanso, propósito visible bajo el título, botón Empezar como acción principal. ✅
+- **H4** (Registro de resultados): dominio `src/domain/training/`, registros de series por ejercicio y resultado de carrera; persistencia bajo `users/{uid}/sessions/{sessionId}`, hooks `useSessionSets` y `useRunLog`, formularios disponibles desde Hoy y Plan. RPE 1–10. Se permiten sesiones libres, separadas de las planificadas. ✅
 
 ### Pendiente de definir (no inventar)
 

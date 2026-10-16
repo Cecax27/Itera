@@ -37,9 +37,11 @@ const DAY_LABELS: Record<WeekDay, string> = {
 
 export interface TodayScreenProps {
   plan: Plan | null;
+  onRegisterPlanned: (session: Session, date: string, day: WeekDay, index: number) => void;
+  onRegisterFree: (date: string) => void;
 }
 
-export function TodayScreen({ plan }: TodayScreenProps) {
+export function TodayScreen({ plan, onRegisterPlanned, onRegisterFree }: TodayScreenProps) {
   const tokens = useThemeTokens();
   const styles = makeStyles(tokens);
   const todayIso = useMemo(() => new Date().toISOString(), []);
@@ -48,13 +50,14 @@ export function TodayScreen({ plan }: TodayScreenProps) {
 
   if (!plan) {
     return (
-      <ScreenLayout>
+      <ScreenLayout scroll>
         <View style={styles.empty}>
           <Text style={styles.emptyTitle}>Aún no hay plan generado.</Text>
           <Text style={styles.emptyBody}>
             Completa el onboarding para que Itera genere tu plan semanal.
           </Text>
         </View>
+        <Button label="Registrar sesión libre" onPress={() => onRegisterFree(todayIso.slice(0, 10))} variant="secondary" />
       </ScreenLayout>
     );
   }
@@ -79,11 +82,20 @@ export function TodayScreen({ plan }: TodayScreenProps) {
         <View style={styles.sessionsList}>
           {todaySessions.map((session, i) => (
             <FadeIn key={i} delay={120 + i * 80}>
-              <SessionCard session={session} />
+              <SessionCard
+                session={session}
+                onRegister={() => onRegisterPlanned(session, todayIso.slice(0, 10), day, i)}
+              />
             </FadeIn>
           ))}
         </View>
       )}
+      <Button
+        label="Registrar sesión libre"
+        onPress={() => onRegisterFree(todayIso.slice(0, 10))}
+        variant="secondary"
+        style={styles.freeSessionButton}
+      />
     </ScreenLayout>
   );
 }
@@ -109,7 +121,7 @@ const progressStyles = StyleSheet.create({
   },
 });
 
-function SessionCard({ session }: { session: Session }) {
+function SessionCard({ session, onRegister }: { session: Session; onRegister: () => void }) {
   const tokens = useThemeTokens();
   const isStrength = session.discipline === 'strength';
   const pulse = usePulseLoop(true, 1800);
@@ -140,10 +152,8 @@ function SessionCard({ session }: { session: Session }) {
 
       <View style={sessionCardStyles.actions}>
         <Button label="Empezar" onPress={() => {}} variant="primary" />
-        <Pressable style={sessionCardStyles.secondaryAction}>
-          <Text style={[sessionCardStyles.secondaryActionText, { color: tokens.colors.ink }]}>
-            No he podido
-          </Text>
+        <Pressable style={sessionCardStyles.secondaryAction} onPress={onRegister} accessibilityRole="button">
+          <Text style={[sessionCardStyles.secondaryActionText, { color: tokens.colors.ink }]}>Registrar resultado</Text>
         </Pressable>
       </View>
     </Card>
@@ -361,5 +371,6 @@ function makeStyles(tokens: ReturnType<typeof useThemeTokens>) {
       color: tokens.colors.textSecondary,
       textAlign: 'center',
     },
+    freeSessionButton: { marginTop: 16, marginBottom: 20 },
   });
 }

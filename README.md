@@ -202,10 +202,10 @@ Si prefieres no tocar el proyecto `itera-4f63c` durante el desarrollo:
 
 ## Estado del proyecto
 
-Repositorio recién inicializado. Contiene la documentación base (`README.md`, `AGENTS.md`), la skill de OpenCode para identidad visual y, desde octubre de 2026, el código inicial de la app Android con React Native + Expo (SDK 57).
+App Android con React Native + Expo SDK 57, Firebase y arquitectura de tres capas.
 
-**H0 (Bootstrap) cerrado**: tres capas, navegación mínima con `@react-navigation/native`, módulo Firebase con emulador opcional, Vitest configurado.
+**H0–H4 cerrados**: bootstrap, perfil y objetivos, planificación semanal, sesión del día y registro de resultados. H4 guarda resultados reales separados de lo planificado; admite sesiones planificadas y sesiones libres, con esfuerzo percibido RPE 1–10.
 
-Pendientes inmediatos: H1 (perfil y objetivos), reglas de seguridad de Firestore, modelo de datos de dominio. Ver [`AGENTS.md`](./AGENTS.md) bajo "Pendiente de definir".
+El siguiente hito del roadmap es **H5 — Historial y análisis**. Consulta [`AGENTS.md`](./AGENTS.md) para las decisiones de arquitectura y pendientes globales.
 
 Consulta [`AGENTS.md`](./AGENTS.md) para las guías de trabajo específicas para agentes que desarrollen en este repo.

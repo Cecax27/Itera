@@ -14,8 +14,8 @@ Capa de interfaz de usuario. Es lo único que sabe de React Native, Expo, navega
 src/app/
 ├── components/      # Componentes reutilizables (Button, Card, Metric, etc.)
 ├── navigation/      # Stacks, tabs, drawers, tipos de navegación
-├── screens/         # Pantallas (componentes que montan navegación + UI)
-└── hooks/           # Hooks específicos de UI (useDebounce, useForm, etc.)
+├── screens/         # Hoy, Plan, Ajustes y formularios de registro
+└── hooks/           # Auth, perfil, plan y persistencia de resultados
 ```
 
 ## Identidad visual

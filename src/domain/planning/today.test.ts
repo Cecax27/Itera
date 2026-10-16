@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { ALL_WEEK_DAYS, emptyAvailability, emptyEquipment, emptyRestrictions, Profile, WeekDay } from '@/domain/profile';
 
-import { Plan, RunSession, Session, StrengthSession, computeWeekProgress, defaultPlanConfig, generatePlan, getNextSession, getTodaySessions, weekDayOf } from '@/domain/planning';
+import { Plan, RunSession, Session, StrengthSession, computeWeekProgress, dateForWeekDay, defaultPlanConfig, generatePlan, getNextSession, getTodaySessions, weekDayOf } from '@/domain/planning';
 
 function makeProfile(): Profile {
   return {
@@ -55,6 +55,14 @@ describe('weekDayOf', () => {
   it('falls back to mon for invalid input', () => {
     expect(weekDayOf('')).toBe('mon');
     expect(weekDayOf('not-a-date')).toBe('mon');
+  });
+});
+
+describe('dateForWeekDay', () => {
+  it('maps each plan weekday to its calendar date', () => {
+    expect(dateForWeekDay('2026-10-12', 'mon')).toBe('2026-10-12');
+    expect(dateForWeekDay('2026-10-12', 'wed')).toBe('2026-10-14');
+    expect(dateForWeekDay('2026-10-12', 'sun')).toBe('2026-10-18');
   });
 });
 

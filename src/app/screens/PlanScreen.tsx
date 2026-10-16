@@ -3,10 +3,10 @@
 
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Card, Screen as ScreenLayout } from '@/app/components';
+import { Button, Card, Screen as ScreenLayout } from '@/app/components';
 import { FadeIn } from '@/app/animations';
 import { ALL_WEEK_DAYS, WeekDay } from '@/domain/profile';
-import { Plan, Session } from '@/domain/planning';
+import { dateForWeekDay, Plan, Session } from '@/domain/planning';
 import { useThemeTokens } from '@/app/theme';
 
 const DAY_LABELS: Record<WeekDay, string> = {
@@ -31,27 +31,29 @@ const DAY_FULL_LABELS: Record<WeekDay, string> = {
 
 export interface PlanScreenProps {
   plan: Plan | null;
+  onRegisterPlanned: (session: Session, date: string, day: WeekDay, index: number) => void;
+  onRegisterFree: (date: string) => void;
 }
 
-export function PlanScreen({ plan }: PlanScreenProps) {
+export function PlanScreen({ plan, onRegisterPlanned, onRegisterFree }: PlanScreenProps) {
   const tokens = useThemeTokens();
   const styles = makeStyles(tokens);
 
   if (!plan) {
     return (
-      <ScreenLayout>
+      <ScreenLayout scroll>
         <View style={styles.empty}>
           <Text style={styles.emptyTitle}>Aún no hay plan generado.</Text>
           <Text style={styles.emptyBody}>
             El primer plan se genera automáticamente al completar el onboarding.
           </Text>
         </View>
+        <Button label="Registrar sesión libre" onPress={() => onRegisterFree(new Date().toISOString().slice(0, 10))} variant="secondary" />
       </ScreenLayout>
     );
   }
 
   const today = new Date();
-  const todayIso = today.toISOString();
   const currentDay = ALL_WEEK_DAYS[(today.getUTCDay() + 6) % 7]; // ajustar a L=0
 
   return (
@@ -88,18 +90,28 @@ export function PlanScreen({ plan }: PlanScreenProps) {
                 <Text style={styles.restDay}>Descanso</Text>
               ) : (
                 sessions.map((session, j) => (
-                  <SessionCard key={j} session={session} />
+                  <SessionCard
+                    key={j}
+                    session={session}
+                    onRegister={() => onRegisterPlanned(session, dateForWeekDay(plan.weekStart, day), day, j)}
+                  />
                 ))
               )}
             </View>
           </FadeIn>
         );
       })}
+      <Button
+        label="Registrar sesión libre"
+        onPress={() => onRegisterFree(new Date().toISOString().slice(0, 10))}
+        variant="secondary"
+        style={styles.freeSessionButton}
+      />
     </ScreenLayout>
   );
 }
 
-function SessionCard({ session }: { session: Session }) {
+function SessionCard({ session, onRegister }: { session: Session; onRegister: () => void }) {
   const tokens = useThemeTokens();
   return (
     <Card
@@ -129,6 +141,12 @@ function SessionCard({ session }: { session: Session }) {
           {session.blocks.length} bloque(s), {(totalDistance(session) / 1000).toFixed(1)} km totales
         </Text>
       )}
+      <Button
+        label="Registrar resultado"
+        onPress={onRegister}
+        variant="secondary"
+        style={sessionCardStyles.registerButton}
+      />
     </Card>
   );
 }
@@ -148,6 +166,7 @@ const sessionCardStyles = StyleSheet.create({
   meta: { fontSize: 12 },
   title: { fontSize: 17, fontWeight: '600', marginBottom: 4 },
   detail: { fontSize: 13, lineHeight: 18 },
+  registerButton: { marginTop: 12 },
 });
 
 function sessionTitle(session: Session): string {
@@ -245,5 +264,6 @@ function makeStyles(tokens: ReturnType<typeof useThemeTokens>) {
       color: tokens.colors.textSecondary,
       textAlign: 'center',
     },
+    freeSessionButton: { marginTop: tokens.spacing.lg, marginBottom: tokens.spacing.xl },
   });
 }

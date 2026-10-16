@@ -14,7 +14,8 @@ El dominio puede depender de TypeScript built-ins y de utilidades compartidas, n
 
 ## Qué vive aquí
 
-- **Entidades puras**: `Profile`, `Goal`, `Plan`, `Session`, `StrengthSet`, `RunLog`, `PlanChange`. Solo tipos y constructores.
+- **Entidades puras**: `Profile`, `Goal`, `Plan`, `Session`, `SessionRecordMetadata`, `SessionSetRecord`, `RunLog`, `PlanChange`. Solo tipos y constructores.
+- **Registro H4**: mantiene por separado la instantánea planificada y los resultados realizados; RPE entero de 1 a 10 y sesiones libres identificadas como tales.
 - **Validaciones**: funciones que validan invariantes del dominio (no de UI).
 - **Reglas del motor de planificación**: generación, progresión, restricciones de simultaneidad entre carrera y fuerza.
 - **Adaptadores puros**: funciones que convierten entre tipos de Firestore y tipos de dominio (cuando la lógica no requiere Firebase, solo tipos).

@@ -15,8 +15,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { NavigationContainer, DarkTheme, DefaultTheme, Theme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
+import { SessionRegistrationModal, SessionRegistrationTarget } from '@/app/screens/SessionRegistrationModal';
 import { useAuth, usePlan, useProfile } from '@/app/hooks';
 import { LoginScreen } from '@/app/screens/LoginScreen';
 import { OnboardingScreen } from '@/app/screens/OnboardingScreen';
@@ -24,8 +26,9 @@ import { PlanScreen } from '@/app/screens/PlanScreen';
 import { TodayScreen } from '@/app/screens/TodayScreen';
 import { SettingsScreen } from '@/app/screens/SettingsScreen';
 import { useThemeTokens } from '@/app/theme';
-import { Profile } from '@/domain/profile';
-import { Plan } from '@/domain/planning';
+import { Profile, WeekDay } from '@/domain/profile';
+import { Plan, Session } from '@/domain/planning';
+import { createFreeSessionRecordId, plannedSessionRecordId } from '@/domain/training';
 
 export type RootStackParamList = {
   Tabs: undefined;
@@ -45,6 +48,26 @@ export function RootStackComponent() {
   const { status: profileStatus, profile, save } = useProfile();
   const { plan, generateFromProfile } = usePlan();
   const tokens = useThemeTokens();
+  const [registrationTarget, setRegistrationTarget] = useState<SessionRegistrationTarget | null>(null);
+
+  function openPlannedRegistration(session: Session, date: string, day: WeekDay, index: number) {
+    if (!plan) return;
+    setRegistrationTarget({
+      sessionId: plannedSessionRecordId(plan.weekStart, day, index),
+      date,
+      source: 'planned',
+      plannedSession: session,
+    });
+  }
+
+  function openFreeRegistration(date: string) {
+    setRegistrationTarget({
+      sessionId: createFreeSessionRecordId(),
+      date,
+      source: 'free',
+      plannedSession: null,
+    });
+  }
 
   let content: React.ReactNode;
   if (authStatus === 'loading' || profileStatus === 'loading') {
@@ -71,12 +94,30 @@ export function RootStackComponent() {
       />
     );
   } else {
-    content = <MainTabs plan={plan} />;
+    content = (
+      <MainTabs
+        plan={plan}
+        onRegisterPlanned={openPlannedRegistration}
+        onRegisterFree={openFreeRegistration}
+      />
+    );
   }
 
   const navTheme: Theme = tokens.scheme === 'dark' ? darkNavTheme : lightNavTheme;
 
-  return <NavigationContainer theme={navTheme}>{content}</NavigationContainer>;
+  return (
+    <NavigationContainer theme={navTheme}>
+      {content}
+      {profile && (
+        <SessionRegistrationModal
+          key={registrationTarget?.sessionId ?? 'closed'}
+          target={registrationTarget}
+          onClose={() => setRegistrationTarget(null)}
+          onSaved={() => setRegistrationTarget(null)}
+        />
+      )}
+    </NavigationContainer>
+  );
 }
 
 const lightNavTheme: Theme = {
@@ -103,7 +144,15 @@ const darkNavTheme: Theme = {
   },
 };
 
-function MainTabs({ plan }: { plan: Plan | null }) {
+function MainTabs({
+  plan,
+  onRegisterPlanned,
+  onRegisterFree,
+}: {
+  plan: Plan | null;
+  onRegisterPlanned: (session: Session, date: string, day: WeekDay, index: number) => void;
+  onRegisterFree: (date: string) => void;
+}) {
   const tokens = useThemeTokens();
   return (
     <Tabs.Navigator
@@ -125,7 +174,7 @@ function MainTabs({ plan }: { plan: Plan | null }) {
           ),
         }}
       >
-        {() => <TodayScreen plan={plan} />}
+        {() => <TodayScreen plan={plan} onRegisterPlanned={onRegisterPlanned} onRegisterFree={onRegisterFree} />}
       </Tabs.Screen>
       <Tabs.Screen
         name="Plan"
@@ -136,7 +185,7 @@ function MainTabs({ plan }: { plan: Plan | null }) {
           ),
         }}
       >
-        {() => <PlanScreen plan={plan} />}
+        {() => <PlanScreen plan={plan} onRegisterPlanned={onRegisterPlanned} onRegisterFree={onRegisterFree} />}
       </Tabs.Screen>
       <Tabs.Screen
         name="Settings"

@@ -26,6 +26,7 @@ export {
 
 export {
   weekDayOf,
+  dateForWeekDay,
   getSessionsForDay,
   getTodaySessions,
   getNextSession,

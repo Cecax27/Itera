@@ -37,6 +37,14 @@ export function weekDayOf(dateIso: string): WeekDay {
   return JS_DAY_TO_WEEK_DAY[dow];
 }
 
+/** Devuelve la fecha ISO de un día del plan, tomando weekStart como lunes. */
+export function dateForWeekDay(weekStart: string, day: WeekDay): string {
+  const monday = new Date(`${weekStart.slice(0, 10)}T00:00:00.000Z`);
+  const offset = ALL_WEEK_DAYS.indexOf(day);
+  monday.setUTCDate(monday.getUTCDate() + offset);
+  return monday.toISOString().slice(0, 10);
+}
+
 /**
  * Devuelve la sesión (o sesiones) del día indicado.
  * Si hay varias, las devuelve en orden.

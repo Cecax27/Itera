@@ -53,7 +53,10 @@ export function usePlan(): UsePlanResult {
     async (profile: Profile): Promise<Plan> => {
       if (!user) throw new Error('Cannot generate plan: user not authenticated');
       const now = new Date().toISOString();
-      const newPlan = generatePlan(profile, defaultPlanConfig(), now);
+      const newPlan = {
+        ...generatePlan(profile, defaultPlanConfig(), now),
+        id: CURRENT_PLAN_ID,
+      };
       await firestorePlanRepository.save(user.id, newPlan);
       setPlan(newPlan);
       setStatus('ready');
