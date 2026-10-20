@@ -25,6 +25,7 @@ export type {
 export {
   computeWeeklyTrainingSummary,
   filterTrainingHistory,
+  hasCompleteResult,
   mondayOfDate,
 } from './history';
 export { advanceStrengthTrainingProgress, createTrainingProgress, withTrainingStatus } from './session-state';

@@ -40,8 +40,8 @@ function makeStyles(tokens: ThemeTokens) {
   return StyleSheet.create({
     chip: {
       paddingVertical: tokens.spacing.sm,
-      paddingHorizontal: 14,
-      borderRadius: tokens.radius.md,
+      paddingHorizontal: tokens.spacing.lg,
+      borderRadius: tokens.radius.pill,
       borderWidth: tokens.borderWidth.hairline,
       borderColor: tokens.colors.border,
       backgroundColor: tokens.colors.surfaceElevated,
@@ -61,6 +61,7 @@ function makeStyles(tokens: ThemeTokens) {
     },
     labelSelected: {
       fontWeight: tokens.fontWeight.semibold,
+      color: tokens.colors.accentInk
     },
   });
 }

@@ -31,7 +31,7 @@ export function Card({ children, accent = 'none', padding = 'md', style }: CardP
     styles.paddingMd;
 
   return (
-    <View style={[styles.base, paddingStyle, accentStyle, style]}>
+    <View style={[styles.base, paddingStyle, style]}>
       {children}
     </View>
   );

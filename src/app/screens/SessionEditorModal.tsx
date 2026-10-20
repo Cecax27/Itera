@@ -34,6 +34,8 @@ const DAY_FULL_LABELS: Record<WeekDay, string> = {
 };
 
 export interface SessionEditorTarget {
+  /** Lunes ISO de la semana del bloque a la que pertenece la sesión. */
+  weekStart: string;
   day: WeekDay;
   index: number;
   session: Session;

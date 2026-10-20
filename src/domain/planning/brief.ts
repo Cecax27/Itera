@@ -66,29 +66,42 @@ export interface PlanBrief {
 
 export const MAX_BRIEF_NOTES_LENGTH = 2000;
 export const MAX_BRIEF_TARGET_LENGTH = 120;
+export const MAX_BRIEF_DESCRIPTION_LENGTH = 280;
+
+/** Campos validables del brief; la UI los usa para señalar el input concreto. */
+export type PlanBriefField =
+  | 'objective.description'
+  | 'objective.target'
+  | 'sessionsPerWeek'
+  | 'availability'
+  | 'experience'
+  | 'notes'
+  | 'focus';
+
+const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+/** Una franja es válida si ambas horas son "HH:mm" y termina después de empezar. */
+function isValidSlot(slot: { start: string; end: string }): boolean {
+  return TIME_RE.test(slot.start) && TIME_RE.test(slot.end) && slot.start < slot.end;
+}
 
 /**
- * Valida el brief. Lanza PlanningValidationError con el campo concreto
- * si algo no cumple las reglas; devuelve void si todo está bien.
+ * Devuelve todos los errores del brief indexados por campo, en el orden en
+ * que se validan (los primeros son los que lanzaría validatePlanBrief).
+ * La UI de creación usa esto para señalar campos concretos en línea,
+ * mientras que validatePlanBrief sigue siendo la barrera final.
  */
-export function validatePlanBrief(brief: PlanBrief): void {
+export function planBriefFieldErrors(brief: PlanBrief): Partial<Record<PlanBriefField, string>> {
+  const errors: Partial<Record<PlanBriefField, string>> = {};
+
   if (!brief.objective || brief.objective.description.trim().length === 0) {
-    throw new PlanningValidationError(
-      'El objetivo necesita una descripción.',
-      'objective.description',
-    );
+    errors['objective.description'] = 'El objetivo necesita una descripción.';
+  } else if (brief.objective.description.length > MAX_BRIEF_DESCRIPTION_LENGTH) {
+    errors['objective.description'] = `La descripción del objetivo no puede superar ${MAX_BRIEF_DESCRIPTION_LENGTH} caracteres.`;
   }
-  if (brief.objective.description.length > 280) {
-    throw new PlanningValidationError(
-      'La descripción del objetivo no puede superar 280 caracteres.',
-      'objective.description',
-    );
-  }
-  if (brief.objective.target && brief.objective.target.length > MAX_BRIEF_TARGET_LENGTH) {
-    throw new PlanningValidationError(
-      `La meta concreta no puede superar ${MAX_BRIEF_TARGET_LENGTH} caracteres.`,
-      'objective.target',
-    );
+
+  if (brief.objective?.target && brief.objective.target.length > MAX_BRIEF_TARGET_LENGTH) {
+    errors['objective.target'] = `La meta concreta no puede superar ${MAX_BRIEF_TARGET_LENGTH} caracteres.`;
   }
 
   if (
@@ -96,47 +109,50 @@ export function validatePlanBrief(brief: PlanBrief): void {
     || brief.sessionsPerWeek < 1
     || brief.sessionsPerWeek > 7
   ) {
-    throw new PlanningValidationError(
-      'El número de días por semana debe estar entre 1 y 7.',
-      'sessionsPerWeek',
-    );
+    errors.sessionsPerWeek = 'El número de días por semana debe estar entre 1 y 7.';
   }
 
   const availableDays = Object.values(brief.availability).filter((slots) => slots.length > 0).length;
   if (availableDays === 0) {
-    throw new PlanningValidationError(
-      'Marca al menos un día con franja disponible.',
-      'availability',
-    );
+    errors.availability = 'Marca al menos un día con franja disponible.';
+  } else if (availableDays < brief.sessionsPerWeek) {
+    errors.sessionsPerWeek = 'No puedes entrenar más días de los que tienen franja disponible.';
   }
-  if (availableDays < brief.sessionsPerWeek) {
-    throw new PlanningValidationError(
-      'No puedes entrenar más días de los que tienen franja disponible.',
-      'sessionsPerWeek',
-    );
+
+  const hasInvalidSlot = Object.values(brief.availability).some(
+    (slots) => slots.some((slot) => !isValidSlot(slot)),
+  );
+  if (hasInvalidSlot) {
+    errors.availability = 'Las franjas necesitan una hora de inicio y otra de fin válidas (la franja termina después de empezar).';
   }
 
   if (brief.experience !== 'beginner'
     && brief.experience !== 'intermediate'
     && brief.experience !== 'advanced') {
-    throw new PlanningValidationError(
-      'El nivel de experiencia no es válido.',
-      'experience',
-    );
+    errors.experience = 'El nivel de experiencia no es válido.';
   }
 
   if (typeof brief.notes !== 'string' || brief.notes.length > MAX_BRIEF_NOTES_LENGTH) {
-    throw new PlanningValidationError(
-      `Las notas no pueden superar ${MAX_BRIEF_NOTES_LENGTH} caracteres.`,
-      'notes',
-    );
+    errors.notes = `Las notas no pueden superar ${MAX_BRIEF_NOTES_LENGTH} caracteres.`;
   }
 
   if (brief.focus !== null && !PLAN_FOCUS_OPTIONS.some((option) => option.value === brief.focus)) {
-    throw new PlanningValidationError(
-      'El reparto entre carrera y fuerza no es válido.',
-      'focus',
-    );
+    errors.focus = 'El reparto entre carrera y fuerza no es válido.';
+  }
+
+  return errors;
+}
+
+/**
+ * Valida el brief. Lanza PlanningValidationError con el campo concreto
+ * si algo no cumple las reglas; devuelve void si todo está bien.
+ */
+export function validatePlanBrief(brief: PlanBrief): void {
+  const errors = planBriefFieldErrors(brief);
+  for (const [field, message] of Object.entries(errors)) {
+    if (message) {
+      throw new PlanningValidationError(message, field as PlanBriefField);
+    }
   }
 }
 

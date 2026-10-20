@@ -42,6 +42,17 @@ export type { WeekProgress, NextSession } from './today';
 export type { PlanHorizon } from './generator';
 export { weeksUntilMonday } from './generator';
 
+export type { MonthCell } from './calendar';
+
+export {
+  addUtcDays,
+  buildMonthGrid,
+  monthLabel,
+  monthOf,
+  MONTH_NAMES_ES,
+  dateAt,
+} from './calendar';
+
 export type {
   PlanBrief,
   PlanFocus,
@@ -53,8 +64,13 @@ export type {
 export {
   PLAN_FOCUS_OPTIONS,
   MAX_BRIEF_NOTES_LENGTH,
+  MAX_BRIEF_TARGET_LENGTH,
+  MAX_BRIEF_DESCRIPTION_LENGTH,
   validatePlanBrief,
+  planBriefFieldErrors,
 } from './brief';
+
+export type { PlanBriefField } from './brief';
 
 export type { PlanSessionEdit } from './edits';
 

@@ -25,6 +25,8 @@ export interface TextFieldProps {
   multiline?: boolean;
   error?: string;
   helper?: string;
+  /** Límite de caracteres; muestra contador "n/máx" bajo el campo. */
+  maxLength?: number;
   rightAdornment?: ReactNode;
   style?: StyleProp<ViewStyle>;
 }
@@ -41,6 +43,7 @@ export function TextField({
   multiline,
   error,
   helper,
+  maxLength,
   style,
 }: TextFieldProps) {
   const tokens = useThemeTokens();
@@ -61,14 +64,26 @@ export function TextField({
           autoCapitalize={autoCapitalize}
           autoCorrect={autoCorrect}
           multiline={multiline}
+          maxLength={maxLength}
           selectionColor={tokens.colors.accent}
         />
       </View>
-      {error ? (
-        <Text style={styles.errorText}>{error}</Text>
-      ) : helper ? (
-        <Text style={styles.helperText}>{helper}</Text>
-      ) : null}
+      {(error || helper || maxLength != null) && (
+        <View style={styles.footRow}>
+          {error ? (
+            <Text style={styles.errorText}>{error}</Text>
+          ) : helper ? (
+            <Text style={styles.helperText}>{helper}</Text>
+          ) : (
+            <View />
+          )}
+          {maxLength != null && (
+            <Text style={[styles.counter, value.length > maxLength - 40 && { color: tokens.colors.error }]}>
+              {value.length}/{maxLength}
+            </Text>
+          )}
+        </View>
+      )}
     </View>
   );
 }
@@ -111,11 +126,25 @@ function makeStyles(tokens: ThemeTokens) {
       fontSize: tokens.fontSize.label,
       color: tokens.colors.error,
       marginTop: tokens.spacing.xs,
+      flex: 1,
     },
     helperText: {
       fontSize: tokens.fontSize.label,
       color: tokens.colors.textSecondary,
       marginTop: tokens.spacing.xs,
+      flex: 1,
+    },
+    footRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      gap: tokens.spacing.sm,
+    },
+    counter: {
+      fontSize: tokens.fontSize.label,
+      color: tokens.colors.veryMutedText,
+      marginTop: tokens.spacing.xs,
+      fontVariant: ['tabular-nums'],
     },
   });
 }

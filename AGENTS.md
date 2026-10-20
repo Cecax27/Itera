@@ -49,7 +49,7 @@ El objetivo central: **"Entrena con un propósito. Entiende tu progreso. Siempre
     │   ├── components/       # Botones, tarjetas, campos y controles compartidos
     │   ├── navigation/       # Stacks, tabs, drawers, tipos de navegación
     │   │   └── RootStack.tsx # Auth, onboarding, tabs (Hoy, Plan, Progreso), asistente y creador de plan
-    │   ├── screens/          # Hoy, Plan, Progreso, Ajustes, entrenamiento, asistente, creador de plan y registros
+    │   ├── screens/          # Hoy, Plan, Progreso, Ajustes, entrenamiento, asistente, creador de plan, registros y detalle de sesión
     │   └── hooks/            # Auth, perfil, plan, plan-builder, historial y estado de entrenamiento
     ├── domain/               # Lógica de negocio pura, sin React ni Firebase (ver src/domain/README.md)
     │   ├── planning/          # Motor del plan (bloques multi-semana) y sesión del día

@@ -15,9 +15,9 @@ const palette = {
   inkLight: '#F0F0EB',
   canvas: '#F7F7F2',
   surface: '#E9EAE3',
-  backgroundDark: '#171A17',
-  surfaceDark: '#242824',
-  surfaceDarkAlt: '#2D312E',
+  backgroundDark: '#020202',
+  surfaceDark: '#262626',
+  surfaceDarkAlt: '#121212',
   accentRun: '#5BB3F2',
   accentRunDark: '#3F8FC9',
   error: '#C0392B',
@@ -27,7 +27,7 @@ const palette = {
   success: '#5B8C5A',
   successDark: '#7AB87B',
   border: '#E9EAE3',
-  borderDark: '#2F332F',
+  borderDark: '#1c1c1c',
   textSecondary: '#5C5F58',
   textSecondaryDark: '#A0A39C',
 } as const;
@@ -92,7 +92,7 @@ export interface ThemeTokens {
   minTouch: number;
 }
 
-const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
+const spacing = { xs: 4, sm: 8, md: 12, lg: 30, xl: 24, xxl: 32 } as const;
 const radius = { sm: 8, md: 12, lg: 16, pill: 999 } as const;
 const fontSize = {
   caption: 11,

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { emptyAvailability, emptyEquipment } from '@/domain/profile';
 
-import { PlanBrief, PLAN_FOCUS_OPTIONS, validatePlanBrief } from './brief';
+import { PlanBrief, PLAN_FOCUS_OPTIONS, planBriefFieldErrors, validatePlanBrief } from './brief';
 
 function validBrief(overrides: Partial<PlanBrief> = {}): PlanBrief {
   const availability = emptyAvailability();
@@ -71,5 +71,57 @@ describe('validatePlanBrief', () => {
   it('limita la longitud de las notas', () => {
     expect(() => validatePlanBrief(validBrief({ notes: 'x'.repeat(2001) }))).toThrow();
     expect(() => validatePlanBrief(validBrief({ notes: 'x'.repeat(2000) }))).not.toThrow();
+  });
+});
+
+describe('planBriefFieldErrors', () => {
+  it('no devuelve errores con un brief válido', () => {
+    expect(planBriefFieldErrors(validBrief())).toEqual({});
+  });
+
+  it('señala el campo concreto de cada problema', () => {
+    const errors = planBriefFieldErrors(validBrief({
+      objective: { id: 'primary', description: '   ', discipline: 'running', target: '' },
+      sessionsPerWeek: 9,
+    }));
+    expect(errors['objective.description']).toBeTruthy();
+    expect(errors.sessionsPerWeek).toBeTruthy();
+    expect(Object.keys(errors)).toHaveLength(2);
+  });
+
+  it('rechaza franjas con hora de fin anterior a la de inicio', () => {
+    const availability = emptyAvailability();
+    availability.mon = [{ start: '08:00', end: '09:00' }];
+    availability.wed = [{ start: '18:00', end: '07:00' }];
+    const errors = planBriefFieldErrors(validBrief({ availability }));
+    expect(errors.availability).toBeTruthy();
+    expect(() => validatePlanBrief(validBrief({ availability }))).toThrow(/después de empezar/);
+  });
+
+  it('rechaza franjas con horas mal formadas', () => {
+    const availability = emptyAvailability();
+    availability.mon = [{ start: '08:00', end: '09:00' }];
+    availability.tue = [{ start: '8am', end: '09:00' }];
+    expect(planBriefFieldErrors(validBrief({ availability })).availability).toBeTruthy();
+  });
+
+  it('acepta franjas coherentes', () => {
+    const availability = emptyAvailability();
+    availability.fri = [{ start: '23:00', end: '23:59' }];
+    availability.sat = [{ start: '00:00', end: '01:00' }];
+    expect(planBriefFieldErrors(validBrief({ availability }))).toEqual({});
+  });
+
+  it('validatePlanBrief lanza el primer error en el orden de validación', () => {
+    // Descripción vacía + 0 días disponibles: el primer error es del objetivo.
+    try {
+      validatePlanBrief(validBrief({
+        objective: { id: 'primary', description: '', discipline: 'running', target: '' },
+        availability: emptyAvailability(),
+      }));
+      expect.unreachable('debía lanzar');
+    } catch (err) {
+      expect((err as Error).message).toBe('El objetivo necesita una descripción.');
+    }
   });
 });

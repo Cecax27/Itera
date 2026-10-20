@@ -8,7 +8,7 @@ import { ActivityIndicator, Pressable, StyleProp, StyleSheet, Text, ViewStyle } 
 
 import { ThemeTokens, useThemeTokens } from '../theme';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
+export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline';
 
 export interface ButtonProps {
   label: string;
@@ -61,6 +61,7 @@ export function Button({
             variant === 'secondary' && styles.textSecondary,
             variant === 'danger' && styles.textDanger,
             variant === 'ghost' && styles.textGhost,
+            variant === 'outline' && styles.textOutline,
           ]}
         >
           {label}
@@ -76,7 +77,7 @@ function makeStyles(tokens: ThemeTokens) {
       minHeight: tokens.minTouch,
       paddingVertical: tokens.spacing.md,
       paddingHorizontal: tokens.spacing.lg,
-      borderRadius: tokens.radius.md,
+      borderRadius: tokens.radius.pill,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -95,6 +96,11 @@ function makeStyles(tokens: ThemeTokens) {
     ghost: {
       backgroundColor: 'transparent',
     },
+    outline: {
+      backgroundColor: 'transparent',
+      borderWidth: tokens.borderWidth.hairline,
+      borderColor: tokens.colors.accent,
+    },
     pressed: { opacity: 0.85 },
     disabled: { opacity: 0.5 },
     text: {
@@ -105,5 +111,6 @@ function makeStyles(tokens: ThemeTokens) {
     textSecondary: { color: tokens.colors.ink },
     textDanger: { color: tokens.colors.error },
     textGhost: { color: tokens.colors.ink, opacity: 0.7 },
+    textOutline: { color: tokens.colors.accent }
   });
 }

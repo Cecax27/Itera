@@ -227,9 +227,10 @@ function SessionCard({
       <View style={sessionCardStyles.actions}>
         <Button label={startLabel} onPress={onStart} variant="primary" disabled={startDisabled} />
         {showRegister ? (
-          <Pressable style={sessionCardStyles.secondaryAction} onPress={onRegister} accessibilityRole="button">
-            <Text style={[sessionCardStyles.secondaryActionText, { color: tokens.colors.ink }]}>Registrar resultado</Text>
-          </Pressable>
+          // <Pressable style={sessionCardStyles.secondaryAction} onPress={onRegister} accessibilityRole="button">
+          //   <Text style={[sessionCardStyles.secondaryActionText, { color: tokens.colors.ink }]}>Registrar resultado</Text>
+          // </Pressable>
+          <Button label="Registrar" onPress={onRegister} variant="outline" />
         ) : null}
       </View>
       <Pressable
@@ -307,7 +308,7 @@ function makeActiveTrainingStyles(tokens: ReturnType<typeof useThemeTokens>) {
 }
 
 const sessionCardStyles = StyleSheet.create({
-  cardSpacing: { marginBottom: 12 },
+  cardSpacing: { marginBottom: 12, marginTop: 12 },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',

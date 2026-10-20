@@ -40,11 +40,23 @@ export function SettingsScreen() {
 
   return (
     <ScreenLayout scroll>
-      <Text style={styles.sectionTitle}>Sesión</Text>
+      <Text style={styles.sectionTitle}>Perfil</Text>
       <Card>
+        {profile ? <><Row
+              label="Nombre"
+              value={profile.name ?? '—'}
+            />
+            <Row
+              label="Experiencia"
+              value={experienceLabel(profile.experience)}
+            />
+            <Row
+              label="Objetivos"
+              value={`${profile.primaryGoal.discipline}`}
+            />
+            
+            </>:null}
         <Row label="Email" value={user?.email ?? '—'} />
-        <Row label="Proveedor" value={user?.provider ?? '—'} />
-        <Row label="ID" value={user?.id ? `${user.id.slice(0, 12)}…` : '—'} mono />
         <View style={styles.divider} />
         <Button label="Cerrar sesión" onPress={() => signOut()} variant="danger" />
       </Card>
@@ -52,7 +64,7 @@ export function SettingsScreen() {
       <Text style={styles.sectionTitle}>Asistente con IA</Text>
       <Card>
         <Text style={styles.muted}>
-          Tu API key se guarda en el almacenamiento seguro de este dispositivo y se envía de forma temporal a Firebase Functions para consultar OpenAI. No se guarda en Firestore; si cambias de dispositivo tendrás que introducirla de nuevo.
+          Tu API key se guarda en el almacenamiento seguro de este dispositivo. Si cambias de dispositivo tendrás que introducirla de nuevo.
         </Text>
         <Pressable onPress={openOpenAiKeys} accessibilityRole="link" style={styles.apiKeyLink}>
           <Text style={styles.apiKeyLinkText}>Crear o gestionar API keys en OpenAI</Text>
@@ -98,40 +110,6 @@ export function SettingsScreen() {
         {assistantSettings.apiKeySaved ? (
           <Button label="Eliminar API key de este dispositivo" onPress={confirmClearAssistantKey} variant="secondary" style={styles.clearKeyButton} />
         ) : null}
-      </Card>
-
-      <Text style={styles.sectionTitle}>Perfil</Text>
-      <Card>
-        {profile ? (
-          <>
-            <Row
-              label="Nombre"
-              value={profile.name ?? '—'}
-            />
-            <Row
-              label="Experiencia"
-              value={experienceLabel(profile.experience)}
-            />
-            <Row
-              label="Objetivos"
-              value={`${profile.secondaryGoals.length + 1} (${profile.primaryGoal.discipline})`}
-            />
-            <Row
-              label="Equipamiento"
-              value={`${Object.values(profile.equipment).filter(Boolean).length} piezas`}
-            />
-            <Row
-              label="Lesiones activas"
-              value={`${profile.restrictions.injuries.length}`}
-            />
-          </>
-        ) : (
-          <Text style={styles.muted}>Sin perfil todavía.</Text>
-        )}
-        <View style={styles.divider} />
-        <Text style={styles.muted}>
-          La edición de perfil post-onboarding llega en un hito posterior.
-        </Text>
       </Card>
     </ScreenLayout>
   );

@@ -129,7 +129,7 @@ export function computeWeeklyTrainingSummary(
   };
 }
 
-function hasCompleteResult(session: Session, record: RecordedTrainingSession | undefined): boolean {
+export function hasCompleteResult(session: Session, record: RecordedTrainingSession | undefined): boolean {
   if (!record) return false;
   if (session.discipline === 'running') return record.runLog !== null;
 

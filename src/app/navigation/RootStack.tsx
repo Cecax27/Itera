@@ -20,6 +20,7 @@ import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 
 import { SessionRegistrationModal, SessionRegistrationTarget } from '@/app/screens/SessionRegistrationModal';
 import { SessionEditorModal, SessionEditorTarget, SessionEditPayload } from '@/app/screens/SessionEditorModal';
+import { SessionDetailScreen } from '@/app/screens/SessionDetailScreen';
 import { PlanBuilderScreen } from '@/app/screens/PlanBuilderScreen';
 import { useActiveTrainingSession, useAuth, usePlan, useProfile, useTrainingHistory } from '@/app/hooks';
 import { LoginScreen } from '@/app/screens/LoginScreen';
@@ -32,7 +33,7 @@ import { SettingsScreen } from '@/app/screens/SettingsScreen';
 import { TrainingScreen } from '@/app/screens/TrainingScreen';
 import { useThemeTokens } from '@/app/theme';
 import { Profile, WeekDay } from '@/domain/profile';
-import { mondayOf, Plan, Session, editPlanSession } from '@/domain/planning';
+import { mondayOf, Plan, Session, editPlanSession, dateForWeekDay } from '@/domain/planning';
 import {
   ActiveTrainingSession,
   createFreeSessionRecordId,
@@ -47,6 +48,7 @@ export type RootStackParamList = {
   Training: { sessionId: string };
   Assistant: { sessionId: string | null; initialQuestion: string | null };
   PlanBuilder: undefined;
+  SessionDetail: { day: WeekDay; index: number; /** Lunes ISO de la semana; por defecto, la del plan. */ weekStart?: string };
 };
 
 export type TabsParamList = {
@@ -68,7 +70,7 @@ export function RootStackComponent() {
   const [registrationTarget, setRegistrationTarget] = useState<SessionRegistrationTarget | null>(null);
   const [sessionEditorTarget, setSessionEditorTarget] = useState<SessionEditorTarget | null>(null);
 
-  function openPlannedRegistration(session: Session, date: string, day: WeekDay, index: number) {
+  function openPlannedRegistration(session: Session, date: string, day: WeekDay, index: number, weekStart?: string) {
     if (activeTrainingState.active?.progress.status === 'active' || activeTrainingState.active?.progress.status === 'paused') {
       Alert.alert('Sesión en curso', 'Pausa o termina la sesión antes de registrar otro resultado.');
       return;
@@ -97,20 +99,22 @@ export function RootStackComponent() {
     });
   }
 
-  function openSessionEditor(day: WeekDay, index: number) {
+  function openSessionEditor(day: WeekDay, index: number, weekStart?: string) {
     if (!plan) return;
-    const session = plan.sessions[day][index];
+    const week = plan.weeks.find((candidate) => candidate.weekStart === (weekStart ?? plan.weekStart));
+    if (!week) return;
+    const session = week.sessions[day][index];
     if (!session) return;
-    const occupiedDays = (Object.entries(plan.sessions) as [WeekDay, readonly unknown[]][])
+    const occupiedDays = (Object.entries(week.sessions) as [WeekDay, readonly unknown[]][])
       .filter(([d, sessions]) => d !== day && sessions.length > 0)
       .map(([d]) => d);
-    setSessionEditorTarget({ day, index, session, occupiedDays });
+    setSessionEditorTarget({ weekStart: week.weekStart, day, index, session, occupiedDays });
   }
 
-  function applySessionEdit(day: WeekDay, index: number, edit: SessionEditPayload) {
+  function applySessionEdit(weekStart: string, day: WeekDay, index: number, edit: SessionEditPayload) {
     if (!plan) return;
     try {
-      const nextPlan = editPlanSession(plan, day, index, edit);
+      const nextPlan = editPlanSession(plan, weekStart, day, index, edit);
       void savePlan(nextPlan).catch((err: unknown) => Alert.alert(
         'No se pudo guardar el plan',
         err instanceof Error ? err.message : 'Inténtalo de nuevo.',
@@ -122,10 +126,10 @@ export function RootStackComponent() {
     setSessionEditorTarget(null);
   }
 
-  function removeSession(day: WeekDay, index: number) {
+  function removeSession(weekStart: string, day: WeekDay, index: number) {
     if (!plan) return;
     try {
-      const nextPlan = editPlanSession(plan, day, index, {});
+      const nextPlan = editPlanSession(plan, weekStart, day, index, {});
       void savePlan(nextPlan).catch((err: unknown) => Alert.alert(
         'No se pudo guardar el plan',
         err instanceof Error ? err.message : 'Inténtalo de nuevo.',
@@ -187,6 +191,7 @@ export function RootStackComponent() {
               onDeleteSession={trainingHistory.deleteSession}
               onRegisterPlanned={openPlannedRegistration}
               onRegisterFree={openFreeRegistration}
+              onOpenSessionDetail={(day, index) => navigation.navigate('SessionDetail', { day, index })}
               activeTraining={activeTrainingState.active}
               activeTrainingLoading={activeTrainingState.loading}
               onResumeActive={() => {
@@ -215,7 +220,6 @@ export function RootStackComponent() {
                 initialQuestion: question,
               })}
               onCreatePlan={() => navigation.navigate('PlanBuilder')}
-              onOpenSessionEditor={openSessionEditor}
               onDeletePlan={deleteCurrentPlan}
               onStartPlanned={(session, date, day, index) => {
                 const sessionId = plannedSessionRecordId(mondayOf(date), day, index);
@@ -270,6 +274,38 @@ export function RootStackComponent() {
               onOpenSettings={() => navigation.navigate('Settings')}
             />
           )}
+        </RootStack.Screen>
+        <RootStack.Screen
+          name="SessionDetail"
+          options={{ headerShown: false }}
+        >
+          {({ route, navigation }) => {
+            const { day, index } = route.params;
+            const weekStart = route.params.weekStart ?? plan?.weekStart ?? '';
+            // La sesión viene de la semana del bloque indicada (por
+            // defecto, la primera); weekStart solo cambia la fecha y el
+            // registro correspondiente.
+            const week = plan?.weeks.find((candidate) => candidate.weekStart === weekStart);
+            const session = week ? week.sessions[day][index] : null;
+            return (
+              <SessionDetailScreen
+                key={`${weekStart}_${day}_${index}`}
+                day={day}
+                index={index}
+                weekStart={weekStart}
+                session={session}
+                record={trainingHistory.sessions.find((candidate) => candidate.metadata.id === plannedSessionRecordId(weekStart, day, index)) ?? null}
+                activeTraining={activeTrainingState.active}
+                historyLoading={trainingHistory.loading}
+                onBack={() => navigation.goBack()}
+                onRegister={() => {
+                  if (!session) return;
+                  openPlannedRegistration(session, dateForWeekDay(weekStart, day), day, index, weekStart);
+                }}
+                onEditSession={() => openSessionEditor(day, index, weekStart)}
+              />
+            );
+          }}
         </RootStack.Screen>
         <RootStack.Screen name="Training" options={{ headerShown: false, gestureEnabled: false }}>
           {({ route, navigation }) => (
@@ -328,8 +364,14 @@ export function RootStackComponent() {
             key={`sessionEditor_${sessionEditorTarget ? `${sessionEditorTarget.day}_${sessionEditorTarget.index}` : 'closed'}`}
             target={sessionEditorTarget}
             onClose={() => setSessionEditorTarget(null)}
-            onSave={applySessionEdit}
-            onDelete={removeSession}
+            onSave={(day, index, edit) => {
+              if (!sessionEditorTarget) return;
+              applySessionEdit(sessionEditorTarget.weekStart, day, index, edit);
+            }}
+            onDelete={(day, index) => {
+              if (!sessionEditorTarget) return;
+              removeSession(sessionEditorTarget.weekStart, day, index);
+            }}
           />
         </>
       )}
@@ -370,6 +412,7 @@ function MainTabs({
   onDeleteSession,
   onRegisterPlanned,
   onRegisterFree,
+  onOpenSessionDetail,
   onOpenSettings,
   activeTraining,
   activeTrainingLoading,
@@ -378,7 +421,6 @@ function MainTabs({
   onFinishIncomplete,
   onAskAssistant,
   onCreatePlan,
-  onOpenSessionEditor,
   onDeletePlan,
 }: {
   plan: Plan | null;
@@ -389,6 +431,7 @@ function MainTabs({
   onDeleteSession: (sessionId: string) => Promise<void>;
   onRegisterPlanned: (session: Session, date: string, day: WeekDay, index: number) => void;
   onRegisterFree: (date: string) => void;
+  onOpenSessionDetail: (day: WeekDay, index: number) => void;
   onOpenSettings: () => void;
   activeTraining: ActiveTrainingSession | null;
   activeTrainingLoading: boolean;
@@ -397,7 +440,6 @@ function MainTabs({
   onFinishIncomplete: () => void;
   onAskAssistant: (sessionId: string, question: string) => void;
   onCreatePlan: () => void;
-  onOpenSessionEditor: (day: WeekDay, index: number) => void;
   onDeletePlan: () => void;
 }) {
   const tokens = useThemeTokens();
@@ -442,6 +484,9 @@ function MainTabs({
         name="Plan"
         options={{
           title: 'Plan',
+          // La pantalla ya tiene su propio encabezado ("Tu plan"); ocultamos
+          // el header nativo de la pestaña para no duplicarlo.
+          headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="calendar-outline" color={color} size={size} />
           ),
@@ -450,14 +495,13 @@ function MainTabs({
         {() => (
           <PlanScreen
             plan={plan}
-            onRegisterPlanned={onRegisterPlanned}
             onRegisterFree={onRegisterFree}
             recordedSessions={recordedSessions}
             historyLoading={historyLoading}
             onRefreshHistory={onRefreshHistory}
             activeTraining={activeTraining}
             onCreatePlan={onCreatePlan}
-            onOpenSessionEditor={onOpenSessionEditor}
+            onOpenSessionDetail={onOpenSessionDetail}
             onDeletePlan={onDeletePlan}
           />
         )}
