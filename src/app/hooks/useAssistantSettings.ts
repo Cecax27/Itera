@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import { AssistantModel } from '@/domain/assistant';
+import { AssistantModel, rankModels } from '@/domain/assistant';
 import { assistantClient } from '@/infrastructure/llm/assistantClient';
 import {
   clearAssistantCredentials,
@@ -85,12 +85,13 @@ export function useAssistantSettings() {
       return false;
     }
 
-    const nextModel = availableModels.some((model) => model.id === saved.model)
+    const rankedModels = rankModels(availableModels);
+    const nextModel = rankedModels.some((model) => model.id === saved.model)
       ? saved.model!
-      : availableModels.find((model) => model.id === DEFAULT_MODEL)?.id ?? availableModels[0].id;
+      : rankedModels.find((model) => model.id === DEFAULT_MODEL)?.id ?? rankedModels[0].id;
     try {
       await saveAssistantCredentials(user.id, { apiKey, model: nextModel });
-      setModels(availableModels);
+      setModels(rankedModels);
       setSelectedModel(nextModel);
       setApiKeySaved(true);
       setNotice(`Conexión correcta. ${availableModels.length} modelos disponibles.`);

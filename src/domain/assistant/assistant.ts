@@ -86,6 +86,41 @@ export function buildUnconfiguredAnswer(): AssistantReply {
   };
 }
 
+/**
+ * Ordena los modelos del más reciente o recomendado al más antiguo.
+ *
+ * OpenAI devuelve la lista sin un orden útil; esta heurística puntúa cada
+ * id por familia y versión: los gpt-N por encima de la serie o (mayor
+ * número = más nuevo), los alias "chatgpt" detrás y los ajustes finos
+ * (ft:) al final. A igual puntuación manda el orden alfabético, y los
+ * snapshots con fecha (p. ej. "gpt-4o-2024-08-06") quedan detrás del
+ * alias vivo del mismo modelo. Es una aproximación determinista: si
+ * OpenAI publicara fechas de lanzamiento en la lista, se usarían.
+ */
+export function rankModels(models: readonly AssistantModel[]): AssistantModel[] {
+  return [...models].sort((a, b) =>
+    recencyScore(b.id) - recencyScore(a.id) || a.id.localeCompare(b.id));
+}
+
+function recencyScore(id: string): number {
+  if (/^ft:/i.test(id)) return 100; // ajustes finos personalizados: al final
+
+  const gpt = /^gpt-(\d+)(?:\.(\d+))?(o)?/i.exec(id);
+  if (gpt) {
+    const major = Number(gpt[1]);
+    const minor = gpt[2] ? Number(gpt[2]) : gpt[3] ? 0.5 : 0;
+    let score = 1000 + major * 100 + minor * 10;
+    if (/-\d{4}-\d{2}-\d{2}/.test(id)) score -= 1;
+    return score;
+  }
+
+  const o = /^o(\d+)/i.exec(id);
+  if (o) return 900 + Number(o[1]) * 100;
+
+  if (/^chatgpt/i.test(id)) return 800;
+  return 0;
+}
+
 function normalizeText(value: string): string {
   return value
     .toLocaleLowerCase('es')

@@ -2,11 +2,14 @@
 // Edición real del perfil llega en un hito posterior.
 
 import { useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Button, Card, Chip, Screen as ScreenLayout, TextField } from '@/app/components';
+import { Button, Card, Screen as ScreenLayout, TextField } from '@/app/components';
 import { useAssistantSettings, useAuth, useProfile } from '@/app/hooks';
 import { useThemeTokens } from '@/app/theme';
+
+/** A partir de esta cantidad de modelos aparece el campo de búsqueda. */
+const MODEL_FILTER_THRESHOLD = 8;
 
 export function SettingsScreen() {
   const tokens = useThemeTokens();
@@ -15,6 +18,11 @@ export function SettingsScreen() {
   const { profile } = useProfile();
   const assistantSettings = useAssistantSettings();
   const [apiKeyDraft, setApiKeyDraft] = useState('');
+  /** Filtro del selector de modelos (solo con listas largas). */
+  const [modelFilter, setModelFilter] = useState('');
+
+  const filteredModels = assistantSettings.models.filter((model) =>
+    model.id.toLowerCase().includes(modelFilter.trim().toLowerCase()));
 
   async function testAssistantConnection() {
     const success = await assistantSettings.testConnection(apiKeyDraft);
@@ -89,17 +97,36 @@ export function SettingsScreen() {
 
         {assistantSettings.models.length > 0 ? (
           <>
-            <Text style={styles.modelLabel}>Modelo para el asistente</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modelChips}>
-              {assistantSettings.models.map((model) => (
-                <Chip
+            <View style={styles.modelHeader}>
+              <Text style={styles.modelLabel}>Modelo para el asistente</Text>
+              <Text style={styles.modelCount}>
+                {assistantSettings.models.length} modelos · del más reciente al más antiguo
+              </Text>
+            </View>
+            {assistantSettings.models.length > MODEL_FILTER_THRESHOLD ? (
+              <TextField
+                value={modelFilter}
+                onChangeText={setModelFilter}
+                placeholder="Buscar modelo…"
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={styles.modelFilter}
+              />
+            ) : null}
+            <View style={styles.modelList}>
+              {filteredModels.map((model, index) => (
+                <ModelRow
                   key={model.id}
-                  label={model.id}
+                  model={model}
                   selected={assistantSettings.selectedModel === model.id}
+                  recommended={index === 0}
                   onPress={() => void assistantSettings.selectModel(model.id)}
                 />
               ))}
-            </ScrollView>
+              {filteredModels.length === 0 ? (
+                <Text style={styles.modelEmpty}>Ningún modelo coincide con la búsqueda.</Text>
+              ) : null}
+            </View>
           </>
         ) : assistantSettings.selectedModel ? (
           <Text style={styles.muted}>Modelo guardado: {assistantSettings.selectedModel}. Prueba la conexión para actualizar la lista disponible.</Text>
@@ -115,8 +142,101 @@ export function SettingsScreen() {
   );
 }
 
-function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+/** Fila del selector de modelos: radio, id y etiqueta de recomendado. */
+function ModelRow({
+  model,
+  selected,
+  recommended,
+  onPress,
+}: {
+  model: { id: string; ownedBy: string };
+  selected: boolean;
+  recommended: boolean;
+  onPress: () => void;
+}) {
   const tokens = useThemeTokens();
+  const styles = makeModelRowStyles(tokens);
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
+      accessibilityLabel={`Modelo ${model.id}`}
+      style={[styles.row, selected && styles.rowSelected]}
+    >
+      <View style={[styles.radio, selected && styles.radioSelected]}>
+        {selected ? <View style={styles.radioDot} /> : null}
+      </View>
+      <Text style={[styles.id, selected && styles.idSelected]} numberOfLines={1}>
+        {model.id}
+      </Text>
+      {recommended ? (
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>Recomendado</Text>
+        </View>
+      ) : null}
+    </Pressable>
+  );
+}
+
+function makeModelRowStyles(tokens: ReturnType<typeof useThemeTokens>) {
+  return StyleSheet.create({
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: tokens.spacing.sm,
+      minHeight: tokens.minTouch,
+      paddingVertical: tokens.spacing.xs,
+      paddingHorizontal: tokens.spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: tokens.colors.border,
+    },
+    rowSelected: {
+      backgroundColor: tokens.colors.surface,
+    },
+    radio: {
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      borderWidth: 1.5,
+      borderColor: tokens.colors.veryMutedText,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    radioSelected: {
+      borderColor: tokens.colors.accent,
+    },
+    radioDot: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+      backgroundColor: tokens.colors.accent,
+    },
+    id: {
+      flexShrink: 1,
+      fontSize: tokens.fontSize.body,
+      color: tokens.colors.ink,
+    },
+    idSelected: {
+      fontWeight: tokens.fontWeight.semibold,
+    },
+    badge: {
+      backgroundColor: tokens.colors.surface,
+      borderWidth: 1,
+      borderColor: tokens.colors.border,
+      borderRadius: tokens.radius.pill,
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      marginLeft: 'auto',
+    },
+    badgeText: {
+      fontSize: tokens.fontSize.caption,
+      color: tokens.colors.textSecondary,
+    },
+  });
+}
+
+function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {  const tokens = useThemeTokens();
   const styles = makeRowStyles(tokens);
   return (
     <View style={styles.row}>
@@ -184,7 +304,32 @@ function makeStyles(tokens: ReturnType<typeof useThemeTokens>) {
       fontStyle: 'italic',
     },
     modelLabel: { fontSize: tokens.fontSize.label, fontWeight: tokens.fontWeight.medium, color: tokens.colors.ink, marginTop: tokens.spacing.md },
-    modelChips: { gap: tokens.spacing.sm, paddingVertical: tokens.spacing.sm },
+    modelHeader: {
+      marginTop: tokens.spacing.md,
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      justifyContent: 'space-between',
+      gap: tokens.spacing.sm,
+    },
+    modelCount: {
+      fontSize: tokens.fontSize.caption,
+      color: tokens.colors.textSecondary,
+      flexShrink: 1,
+    },
+    modelFilter: { marginTop: tokens.spacing.sm },
+    modelList: {
+      marginTop: tokens.spacing.sm,
+      borderWidth: 1,
+      borderColor: tokens.colors.border,
+      borderRadius: tokens.radius.md,
+      overflow: 'hidden',
+    },
+    modelEmpty: {
+      fontSize: tokens.fontSize.label,
+      color: tokens.colors.textSecondary,
+      fontStyle: 'italic',
+      padding: tokens.spacing.md,
+    },
     success: { fontSize: tokens.fontSize.label, color: tokens.colors.success, marginTop: tokens.spacing.md },
     error: { fontSize: tokens.fontSize.label, color: tokens.colors.error, marginTop: tokens.spacing.md },
     clearKeyButton: { marginTop: tokens.spacing.sm },
