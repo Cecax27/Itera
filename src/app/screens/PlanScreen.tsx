@@ -16,7 +16,7 @@ import { Button, Card, Chip, RecordedSessionCard, Screen as ScreenLayout } from 
 import { FadeIn } from '@/app/animations';
 import { Ionicons } from '@expo/vector-icons';
 import { ALL_WEEK_DAYS, WeekDay } from '@/domain/profile';
-import { Plan, Session, addUtcDays, buildMonthGrid, dateForWeekDay, monthLabel, monthOf, weekDayOf, mondayOf } from '@/domain/planning';
+import { Plan, Session, addUtcDays, buildMonthGrid, dateForWeekDay, monthLabel, monthOf, weekDayOf, weekPlanForDate, mondayOf } from '@/domain/planning';
 import { MonthCell } from '@/domain/planning/calendar';
 import { useThemeTokens } from '@/app/theme';
 import {
@@ -62,7 +62,7 @@ const VIEW_MODE_LABELS: Record<PlanViewMode, string> = {
 };
 
 type DayEntry =
-  | { session: Session; record: RecordedTrainingSession | null; planned: true; day: WeekDay; index: number }
+  | { session: Session; record: RecordedTrainingSession | null; planned: true; day: WeekDay; index: number; weekStart: string }
   | { record: RecordedTrainingSession }; // registro sin sesión planificada (sesión libre).
 
 function isFreeRecord(entry: DayEntry): entry is Extract<DayEntry, { record: RecordedTrainingSession }> {
@@ -78,8 +78,8 @@ export interface PlanScreenProps {
   activeTraining: ActiveTrainingSession | null;
   /** Abre el asistente de creación de plan con IA. */
   onCreatePlan: () => void;
-  /** Abre la vista de detalle de una sesión concreta. */
-  onOpenSessionDetail: (day: WeekDay, index: number) => void;
+  /** Abre la vista de detalle de una sesión concreta (con su semana del bloque). */
+  onOpenSessionDetail: (day: WeekDay, index: number, weekStart: string) => void;
   /** Elimina el plan completo (con confirmación previa). */
   onDeletePlan: () => void;
 }
@@ -113,20 +113,16 @@ export function PlanScreen({
     void onRefreshHistory();
   }, [onRefreshHistory]));
 
-  // Semana seleccionada: por defecto la que contiene hoy (si está en el
-  // bloque); si hoy está fuera, la última pasada o la primera.
+  // Semana de referencia para la vista de lista: la que contiene hoy
+  // (si hoy está en el bloque); si está fuera, la última pasada o la primera.
   const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const defaultWeekIndex = useMemo(() => {
+  const listWeekIndex = useMemo(() => {
     if (!plan || plan.weeks.length === 0) return 0;
     const todayMonday = mondayOf(todayIso);
     const index = plan.weeks.findIndex((week) => week.weekStart === todayMonday);
     if (index >= 0) return index;
     return todayIso < plan.weeks[0].weekStart ? 0 : plan.weeks.length - 1;
   }, [plan, todayIso]);
-  const [weekIndex, setWeekIndex] = useState(defaultWeekIndex);
-  const clampedIndex = plan && plan.weeks.length > 0
-    ? Math.min(Math.max(weekIndex, 0), plan.weeks.length - 1)
-    : 0;
 
   const confirmDeletePlan = () => {
     Alert.alert(
@@ -167,27 +163,32 @@ export function PlanScreen({
     );
   }
 
-  const week = plan.weeks[clampedIndex] ?? plan.weeks[0];
+  const week = plan.weeks[listWeekIndex] ?? plan.weeks[0];
+  // Último día del bloque: la fecha objetivo o el domingo de la última semana.
+  const blockEndDate = plan.goalDate ?? addUtcDays(plan.weeks[plan.weeks.length - 1].weekStart, 6);
+  // Alias no nulo para las funciones auxiliares (el estrechado de tipos
+  // no se propaga dentro de las declaraciones de función).
+  const currentPlan = plan;
   const goalLabel = plan.goalDate ? formatDateLabel(plan.goalDate) : null;
 
   /**
-   * Entradas a mostrar de un día. Las sesiones planificadas solo se
-   * presentan en la semana del bloque que coincide con esa semana de
-   * calendario (el identificador de registro incluye la semana); en el
-   * resto de semanas se muestran los registros realizados de esa fecha
-   * (sesiones libres o planes antiguos).
+   * Entradas a mostrar de un día. Las sesiones planificadas salen de la
+   * semana del bloque que contiene la fecha de calendario: así la vista
+   * de mes muestra todas las sesiones del plan. Además se añaden los
+   * registros realizados de esa fecha (sesiones libres o planes antiguos).
    */
   function buildDayEntries(weekStartIso: string, day: WeekDay): DayEntry[] {
     const dateIso = dateForWeekDay(weekStartIso, day);
     const entries: DayEntry[] = [];
     const matchedRecordIds = new Set<string>();
 
-    if (weekStartIso === week.weekStart) {
-      week.sessions[day].forEach((session, index) => {
-        const id = plannedSessionRecordId(week.weekStart, day, index);
+    const blockWeek = weekPlanForDate(currentPlan, dateIso);
+    if (blockWeek) {
+      blockWeek.sessions[day].forEach((session, index) => {
+        const id = plannedSessionRecordId(blockWeek.weekStart, day, index);
         matchedRecordIds.add(id);
         const record = recordedSessions.find((candidate) => candidate.metadata.id === id) ?? null;
-        entries.push({ session, record, planned: true, day, index });
+        entries.push({ session, record, planned: true, day, index, weekStart: blockWeek.weekStart });
       });
     }
 
@@ -232,10 +233,10 @@ export function PlanScreen({
         session={entry.session}
         day={entry.day}
         index={entry.index}
-        weekStart={week.weekStart}
+        weekStart={entry.weekStart}
         record={entry.record}
         activeTraining={activeTraining}
-        onPress={() => onOpenSessionDetail(entry.day, entry.index)}
+        onPress={() => onOpenSessionDetail(entry.day, entry.index, entry.weekStart)}
       />
     );
   };
@@ -386,21 +387,11 @@ export function PlanScreen({
         <View style={styles.header}>
           <View style={styles.headerText}>
             <Text style={styles.title}>Tu plan</Text>
-            {plan.weeks.length > 1 ? (
-              <WeekSelector
-                index={clampedIndex}
-                total={plan.weeks.length}
-                weekStart={week.weekStart}
-                sessionCount={countSessions(week)}
-                onChange={setWeekIndex}
-                styles={styles}
-                tokens={tokens}
-              />
-            ) : (
-              <Text style={styles.meta}>
-                Semana del {week.weekStart} · {countSessions(week)} sesiones
-              </Text>
-            )}
+            <Text style={styles.meta}>
+              {plan.weeks.length > 1
+                ? `Bloque de ${plan.weeks.length} semanas · del ${formatShortDate(plan.weeks[0].weekStart)} al ${formatShortDate(blockEndDate)}`
+                : `Semana del ${formatShortDate(week.weekStart)} · ${countSessions(week)} sesiones`}
+            </Text>
             {goalLabel ? (
               <Text style={styles.goalLabel}>Objetivo: {goalLabel}</Text>
             ) : null}
@@ -473,50 +464,6 @@ export function PlanScreen({
 
 function countSessions(week: { sessions: Record<WeekDay, readonly Session[]> }): number {
   return Object.values(week.sessions).reduce((sum, list) => sum + list.length, 0);
-}
-
-function WeekSelector({
-  index,
-  total,
-  weekStart,
-  sessionCount,
-  onChange,
-  styles,
-  tokens,
-}: {
-  index: number;
-  total: number;
-  weekStart: string;
-  sessionCount: number;
-  onChange: (next: number) => void;
-  styles: ReturnType<typeof makeStyles>;
-  tokens: ReturnType<typeof useThemeTokens>;
-}) {
-  return (
-    <View style={styles.weekSelector}>
-      <Pressable
-        onPress={() => onChange(index - 1)}
-        disabled={index <= 0}
-        accessibilityRole="button"
-        accessibilityLabel="Semana anterior"
-        style={[styles.weekArrow, index <= 0 && styles.weekArrowDisabled]}
-      >
-        <Ionicons name="chevron-back" size={18} color={tokens.colors.ink} />
-      </Pressable>
-      <Text style={styles.meta}>
-        Semana {index + 1} de {total} · del {weekStart} · {sessionCount} sesiones
-      </Text>
-      <Pressable
-        onPress={() => onChange(index + 1)}
-        disabled={index >= total - 1}
-        accessibilityRole="button"
-        accessibilityLabel="Semana siguiente"
-        style={[styles.weekArrow, index >= total - 1 && styles.weekArrowDisabled]}
-      >
-        <Ionicons name="chevron-forward" size={18} color={tokens.colors.ink} />
-      </Pressable>
-    </View>
-  );
 }
 
 function formatDateLabel(dateIso: string): string {
@@ -951,22 +898,6 @@ function makeStyles(tokens: ReturnType<typeof useThemeTokens>) {
       color: tokens.colors.textSecondary,
       marginTop: 2,
       textTransform: 'capitalize',
-    },
-    weekSelector: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: tokens.spacing.xs,
-    },
-    weekArrow: {
-      width: tokens.minTouch,
-      height: tokens.minTouch,
-      borderRadius: tokens.radius.pill,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: tokens.colors.surface,
-    },
-    weekArrowDisabled: {
-      opacity: 0.3,
     },
     dayRow: {
       paddingVertical: tokens.spacing.md,

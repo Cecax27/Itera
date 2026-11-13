@@ -20,7 +20,7 @@
 // Requiere API key de OpenAI y modelo configurados en Ajustes: los datos
 // viajan a Functions y la clave nunca llega a Firestore.
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   Alert,
@@ -58,6 +58,7 @@ import {
   emptyAvailability,
 } from '@/domain/profile';
 import {
+  addUtcDays,
   MAX_BRIEF_DESCRIPTION_LENGTH,
   MAX_BRIEF_NOTES_LENGTH,
   MAX_BRIEF_TARGET_LENGTH,
@@ -634,6 +635,11 @@ function ReviewStep({
   const styles = makeStyles(tokens);
   const issues = Object.entries(fieldErrors) as [PlanBriefField, string][];
 
+  /** Semana del bloque que se previsualiza (si el plan es multi-semana). */
+  const [previewIndex, setPreviewIndex] = useState(0);
+  // Un borrador nuevo vuelve a mostrar la primera semana.
+  useEffect(() => { setPreviewIndex(0); }, [draft?.plan.weekStart]);
+
   if (applied) {
     return (
       <View>
@@ -678,7 +684,7 @@ function ReviewStep({
         )}
         {generating && (
           <Text style={[styles.bodyText, { color: tokens.colors.textSecondary, marginTop: 8 }]}>
-            El modelo está diseñando tu semana. Puede tardar unos segundos.
+            El modelo está diseñando tu plan. Puede tardar unos segundos.
           </Text>
         )}
         {generationError && (
@@ -699,6 +705,9 @@ function ReviewStep({
     );
   }
 
+  // A partir de aquí existe un borrador: previsualizamos la semana elegida.
+  const previewWeek = draft.plan.weeks[Math.min(previewIndex, draft.plan.weeks.length - 1)];
+
   return (
     <View>
       <Text style={[styles.bodyText, { color: tokens.colors.textSecondary }]}>
@@ -714,16 +723,31 @@ function ReviewStep({
       )}
 
       <View style={[styles.planCard, { borderColor: tokens.colors.border, backgroundColor: tokens.colors.surfaceElevated }]}>
-        <Text style={styles.planCardTitle}>Semana del {formatDateEs(draft.plan.weekStart)}</Text>
-        {draft.plan.weeks.length > 1 && (
-          <Text style={[styles.planBlockNote, { color: tokens.colors.textSecondary }]}>
-            Bloque de {draft.plan.weeks.length} semanas
-          </Text>
+        {draft.plan.weeks.length > 1 ? (
+          <>
+            <Text style={styles.planCardTitle}>
+              Bloque del {formatDateEs(draft.plan.weeks[0].weekStart)} al {formatDateEs(blockEndDate(draft.plan))}
+            </Text>
+            <Text style={[styles.planBlockNote, { color: tokens.colors.textSecondary }]}>
+              {draft.plan.weeks.length} semanas
+              {draft.plan.goalDate ? ` · fecha objetivo: ${formatDateEs(draft.plan.goalDate)}` : ''}
+            </Text>
+            <View style={styles.weekChipRow}>
+              {draft.plan.weeks.map((week, index) => (
+                <Chip
+                  key={week.weekStart}
+                  label={`Sem ${index + 1}`}
+                  selected={index === previewIndex}
+                  onPress={() => setPreviewIndex(index)}
+                />
+              ))}
+            </View>
+          </>
+        ) : (
+          <Text style={styles.planCardTitle}>Semana del {formatDateEs(draft.plan.weekStart)}</Text>
         )}
         {WEEK_DAYS.map((day) => {
-          const previewWeek = draft.plan.weeks[0];
-          if (!previewWeek) return null;
-          const sessions = previewWeek.sessions[day];
+          const sessions = previewWeek.sessions[day] ?? [];
           const date = dateForWeekDay(previewWeek.weekStart, day);
           return (
             <View key={day} style={styles.planRow}>
@@ -787,6 +811,13 @@ function ReviewStep({
       <Button label="Atrás" onPress={onBack} variant="secondary" style={{ marginTop: 8, marginBottom: 16 }} />
     </View>
   );
+}
+
+/** Último día visible del bloque: la fecha objetivo o el domingo de la última semana. */
+function blockEndDate(plan: Plan): string {
+  if (plan.goalDate) return plan.goalDate;
+  const lastWeek = plan.weeks[plan.weeks.length - 1];
+  return addUtcDays(lastWeek.weekStart, 6);
 }
 
 function sessionTitle(session: Session): string {
@@ -885,6 +916,7 @@ function makeStyles(tokens: ReturnType<typeof useThemeTokens>) {
     planCard: { borderWidth: 1, borderRadius: 16, padding: 16, marginTop: 4, marginBottom: 12 },
     planCardTitle: { fontSize: 18, fontWeight: '600', marginBottom: 8, color: tokens.colors.ink },
     planBlockNote: { fontSize: 13, marginTop: -4, marginBottom: 8 },
+    weekChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
     planRow: { flexDirection: 'row', gap: 12, paddingVertical: 6 },
     planDay: { width: 56, fontWeight: '600', fontSize: 14, color: tokens.colors.ink },
     planSessions: { flex: 1, gap: 2 },

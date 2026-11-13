@@ -10,10 +10,11 @@ import {
 } from '@/domain/assistant';
 import {
   GeneratedPlanResult,
+  normalizePlan,
+  Plan,
   PlanBrief,
   PlanBuilderRepository,
 } from '@/domain/planning';
-import { Plan } from '@/domain/planning';
 import { getDbInstance, getFunctionsInstance } from '../client';
 
 interface AskAssistantRequest {
@@ -63,7 +64,10 @@ export const firebaseAssistantRepository = {
       'generateTrainingPlan',
     );
     const response = await callable(request);
-    return response.data;
+    // Los borradores antiguos (una sola semana con `sessions` por día y
+    // sin `weeks`) se normalizan al vuelo, igual que los planes leídos
+    // de Firestore; así la previsualización nunca ve un plan sin `weeks`.
+    return { ...response.data, plan: normalizePlan(response.data.plan) };
   },
 
   async listPlanChanges(userId: string): Promise<PlanChange[]> {
@@ -88,6 +92,7 @@ export const firebaseAssistantRepository = {
       ResolvePlanChangeResponse
     >(getFunctionsInstance(), 'resolvePlanChange');
     const response = await callable({ changeId, decision });
-    return response.data;
+    const data = response.data;
+    return { ...data, plan: data.plan ? normalizePlan(data.plan) : null };
   },
 };

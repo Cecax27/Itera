@@ -174,7 +174,63 @@ describe('buildPlanBlock', () => {
     expect(block.weeks.map((week) => week.weekStart)).toEqual([
       '2026-10-12', '2026-10-19', '2026-10-26', '2026-11-02',
     ]);
+  });
+
+  it('trims the sessions of days already past in the current week', () => {
+    // Hoy es miércoles 14: lunes y martes ya pasaron.
+    const midWeekPlan: PlanRecord = {
+      ...currentPlan,
+      weeks: [{
+        weekStart: '2026-10-12',
+        sessions: { mon: [run], tue: [strength], wed: [run], thu: [], fri: [strength], sat: [], sun: [] },
+      }],
+    };
+    const block = buildPlanBlock(midWeekPlan, { weeks: 1, goalDate: null }, '2026-10-14T10:00:00Z');
+    expect(block.weeks[0].sessions.mon).toEqual([]);
+    expect(block.weeks[0].sessions.tue).toEqual([]);
+    expect(block.weeks[0].sessions.wed).toEqual([run]);
+    expect(block.weeks[0].sessions.fri).toEqual([strength]);
+  });
+
+  it('expands until the goal date and ends exactly on it', () => {
+    const goalPlan: PlanRecord = {
+      ...currentPlan,
+      weeks: [{
+        weekStart: '2026-10-12',
+        sessions: { mon: [run], wed: [strength], sat: [run], sun: [run] },
+      }],
+    };
+    const block = buildPlanBlock(goalPlan, { goalDate: '2026-10-16' }, '2026-10-12T10:00:00Z');
+    expect(block.goalDate).toBe('2026-10-16');
+    expect(block.weeks).toHaveLength(1);
     expect(block.weeks[0].sessions.mon).toEqual([run]);
+    // Sábado y domingo quedan fuera: el bloque termina el viernes 16.
+    expect(block.weeks[0].sessions.sat).toEqual([]);
+    expect(block.weeks[0].sessions.sun).toEqual([]);
+  });
+
+  it('covers from today until the goal date (Nov 13 → Nov 30 case)', () => {
+    // Hoy es viernes 2026-11-13 y el objetivo es el lunes 2026-11-30.
+    const block = buildPlanBlock(currentPlan, { goalDate: '2026-11-30' }, '2026-11-13T10:00:00Z');
+    expect(block.weeks.map((week) => week.weekStart)).toEqual([
+      '2026-11-09', '2026-11-16', '2026-11-23', '2026-11-30',
+    ]);
+    // La semana en curso solo conserva lo que queda por hacer.
+    expect(block.weeks[0].sessions.mon).toEqual([]);
+    expect(block.weeks[0].sessions.tue).toEqual([]);
+    // La semana objetivo termina el día del objetivo y llega en descarga
+    // de objetivo (×0.7: 5000 m → 3500 m).
+    expect(block.weeks[3].sessions.mon[0]).toEqual({
+      ...run,
+      blocks: [{ type: 'steady', distanceMeters: 3500 }],
+      estimatedDurationMinutes: 21,
+    });
+    expect(block.weeks[3].sessions.tue).toEqual([]);
+  });
+
+  it('rejects a goal date that already passed', () => {
+    expect(() => buildPlanBlock(currentPlan, { goalDate: '2026-10-11' }, '2026-10-14T10:00:00Z'))
+      .toThrow('La fecha objetivo ya pasó.');
   });
 
   it('resolves the week count from the goal date', () => {

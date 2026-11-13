@@ -77,7 +77,7 @@ describe('assembleDraftPlan', () => {
     brief,
     profileAvailability: availability,
     profileExperience: 'intermediate',
-    now: () => '2026-10-16T10:00:00.000Z',
+    now: () => '2026-10-12T10:00:00.000Z',
     mondayOf: mondayOfIso,
   };
 
@@ -85,9 +85,11 @@ describe('assembleDraftPlan', () => {
     const draft = assembleDraftPlan(output(), input);
     expect(draft.plan.id).toBe('draft');
     expect(draft.plan.weekStart).toBe('2026-10-12');
-    expect(draft.plan.createdAt).toBe('2026-10-16T10:00:00.000Z');
+    expect(draft.plan.createdAt).toBe('2026-10-12T10:00:00.000Z');
     expect(draft.plan.config.maxSessionsPerWeek).toBe(3);
-    expect(draft.plan.sessions.tue).toHaveLength(1);
+    expect(draft.plan.weeks).toHaveLength(1);
+    expect(draft.plan.weeks[0].weekStart).toBe('2026-10-12');
+    expect(draft.plan.weeks[0].sessions.tue).toHaveLength(1);
   });
 
   it('normaliza los campos opcionales nulos del modelo (purpose y bloques)', () => {
@@ -103,7 +105,7 @@ describe('assembleDraftPlan', () => {
         tue: [], wed: [], thu: [], fri: [], sat: [], sun: [],
       },
     }), input);
-    const run = draft.plan.sessions.mon[0];
+    const run = draft.plan.weeks[0].sessions.mon[0];
     expect(run).toEqual({
       discipline: 'running',
       type: 'easy',
@@ -144,7 +146,92 @@ describe('assembleDraftPlan', () => {
       brief: { ...brief, availability: briefAvailability } as PlanBriefInput,
       profileAvailability: { ...availability, sun: [] },
     });
-    expect(draft.plan.sessions.sun).toHaveLength(1);
+    expect(draft.plan.weeks[0].sessions.sun).toHaveLength(1);
+  });
+
+  it('expande el bloque hasta la fecha objetivo del brief', () => {
+    const draft = assembleDraftPlan(output(), {
+      ...input,
+      brief: {
+        ...brief,
+        objective: { ...brief.objective, targetDate: '2026-11-01' },
+      } as PlanBriefInput,
+    });
+    expect(draft.plan.goalDate).toBe('2026-11-01');
+    // Del lunes 12 al domingo 1 de noviembre: 3 semanas.
+    expect(draft.plan.weeks.map((week) => week.weekStart)).toEqual([
+      '2026-10-12', '2026-10-19', '2026-10-26',
+    ]);
+  });
+
+  it('cubre desde hoy hasta la fecha objetivo (caso 13 → 30 de noviembre)', () => {
+    const runSession = output().sessions.tue;
+    const draft = assembleDraftPlan(output({
+      config: { minSessionsPerWeek: 2, maxSessionsPerWeek: 5, targetSessionMinutes: 45 },
+      sessions: {
+        mon: runSession,
+        tue: runSession,
+        wed: [],
+        thu: output().sessions.thu,
+        fri: [],
+        sat: runSession,
+        sun: [],
+      },
+    }), {
+      ...input,
+      now: () => '2026-11-13T10:00:00.000Z',
+      brief: {
+        ...brief,
+        objective: { ...brief.objective, targetDate: '2026-11-30' },
+      } as PlanBriefInput,
+    });
+    // Del bloque salen las semanas del 9, 16, 23 y 30 de noviembre.
+    expect(draft.plan.weeks.map((week) => week.weekStart)).toEqual([
+      '2026-11-09', '2026-11-16', '2026-11-23', '2026-11-30',
+    ]);
+    // Hoy es viernes 13: lunes, martes y jueves ya pasaron y no aparecen.
+    expect(draft.plan.weeks[0].sessions.mon).toEqual([]);
+    expect(draft.plan.weeks[0].sessions.tue).toEqual([]);
+    expect(draft.plan.weeks[0].sessions.thu).toEqual([]);
+    expect(draft.plan.weeks[0].sessions.sat).toHaveLength(1);
+    // La semana objetivo termina el día del objetivo (lunes 30).
+    expect(draft.plan.weeks[3].sessions.mon).toHaveLength(1);
+    expect(draft.plan.weeks[3].sessions.tue).toEqual([]);
+    expect(draft.plan.weeks[3].sessions.sat).toEqual([]);
+  });
+
+  it('ignora la fecha objetivo si ya pasó y recorta los días pasados', () => {
+    const runSession = output().sessions.tue;
+    const draft = assembleDraftPlan(output({
+      config: { minSessionsPerWeek: 2, maxSessionsPerWeek: 5, targetSessionMinutes: 45 },
+      sessions: {
+        mon: [], tue: runSession, wed: [], thu: [], fri: [], sat: runSession, sun: [],
+      },
+    }), {
+      ...input,
+      now: () => '2026-10-16T10:00:00.000Z',
+      brief: {
+        ...brief,
+        objective: { ...brief.objective, targetDate: '2026-10-10' },
+      } as PlanBriefInput,
+    });
+    expect(draft.plan.goalDate).toBeUndefined();
+    expect(draft.plan.weeks).toHaveLength(1);
+    // Hoy es viernes 16: la semana en curso solo conserva lo pendiente.
+    expect(draft.plan.weeks[0].sessions.tue).toEqual([]);
+    expect(draft.plan.weeks[0].sessions.sat).toHaveLength(1);
+  });
+
+  it('extiende el horizonte si al recortar los días pasados no queda nada', () => {
+    // Viernes 16, plantilla solo con sesiones de martes y jueves: la
+    // semana en curso queda vacía y el bloque se extiende una semana más.
+    const draft = assembleDraftPlan(output(), {
+      ...input,
+      now: () => '2026-10-16T10:00:00.000Z',
+    });
+    expect(draft.plan.weeks).toHaveLength(2);
+    expect(draft.plan.weeks[0].sessions.tue).toEqual([]);
+    expect(draft.plan.weeks[1].sessions.tue).toHaveLength(1);
   });
 
   it('devuelve las suposiciones y añade nota si falta experiencia', () => {

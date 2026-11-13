@@ -9,6 +9,12 @@
 //   - Cada 4ª semana es descarga (volumen ×0.8).
 //   - La última semana es descarga de objetivo (×0.7).
 //
+// El bloque se ancla siempre a la semana en curso, pero las semanas son
+// contenedores de lunes a domingo: si el bloque se genera a mitad de
+// semana, la primera semana descarta las sesiones de los días ya
+// pasados. Con fecha objetivo, la última semana descarta las sesiones
+// posteriores a ese día para que el bloque termine exactamente ahí.
+//
 // Es TypeScript puro y espeja las reglas del motor cliente
 // (src/domain/planning/generator.ts); las Functions no pueden importar
 // ese código directamente porque se despliegan como paquete separado.
@@ -41,16 +47,37 @@ export function buildPlanBlock(
   todayIso: string,
 ): PlanRecord {
   const startMonday = mondayOf(todayIso);
+  // La fecha objetivo no puede ser un día que ya pasó: el bloque siempre
+  // arranca como mínimo hoy.
+  if (horizon.goalDate && horizon.goalDate.slice(0, 10) < todayIso.slice(0, 10)) {
+    throw new Error('La fecha objetivo ya pasó.');
+  }
   const template = currentPlan.weeks[0].sessions;
   const totalWeeks = resolveWeekCount(horizon, startMonday);
 
-  const weeks = [];
+  const weeks: { weekStart: string; sessions: WeekSessions }[] = [];
   for (let index = 0; index < totalWeeks; index += 1) {
     const weekStart = addDays(startMonday, 7 * index);
     const sessions: WeekSessions = index === 0
       ? structuredClone(template)
       : applyWeeklyProgression(template, index, totalWeeks);
     weeks.push({ weekStart, sessions });
+  }
+
+  // Si el bloque se genera a mitad de semana, la primera semana no
+  // debe proponer entrenamientos de días ya pasados.
+  weeks[0] = {
+    weekStart: weeks[0].weekStart,
+    sessions: dropSessionsBefore(weeks[0], todayIso),
+  };
+
+  // Con fecha objetivo, la última semana termina exactamente ese día.
+  if (horizon.goalDate) {
+    const last = weeks[weeks.length - 1];
+    weeks[weeks.length - 1] = {
+      ...last,
+      sessions: dropSessionsAfter(last, horizon.goalDate),
+    };
   }
 
   return {
@@ -92,6 +119,50 @@ export function mondayOf(dateIso: string): string {
   const diffToMonday = dow === 0 ? -6 : 1 - dow;
   date.setUTCDate(date.getUTCDate() + diffToMonday);
   return date.toISOString().slice(0, 10);
+}
+
+/** Índice del día de la semana de una fecha ISO (0 = lunes … 6 = domingo). */
+function weekDayIndex(dateIso: string): number {
+  const date = new Date(`${dateIso.slice(0, 10)}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) throw new Error('La fecha no es válida.');
+  return (date.getUTCDay() + 6) % 7;
+}
+
+/**
+ * Devuelve la semana sin las sesiones de los días anteriores a
+ * `fromDateIso`. Se usa en la semana en curso cuando el bloque se
+ * genera a mitad de semana: los días ya pasados no deben figurar como
+ * entrenamientos pendientes.
+ */
+export function dropSessionsBefore(
+  week: { weekStart: string; sessions: WeekSessions },
+  fromDateIso: string,
+): WeekSessions {
+  const result = structuredClone(week.sessions) as WeekSessions;
+  const startIndex = weekDayIndex(week.weekStart);
+  const fromIndex = Math.max(startIndex, weekDayIndex(fromDateIso));
+  for (let index = startIndex; index < fromIndex && index < WEEK_DAYS.length; index += 1) {
+    result[WEEK_DAYS[index]] = [];
+  }
+  return result;
+}
+
+/**
+ * Devuelve la semana sin las sesiones de los días posteriores a
+ * `toDateIso`. Se usa en la semana objetivo para que el bloque termine
+ * exactamente en la fecha objetivo.
+ */
+export function dropSessionsAfter(
+  week: { weekStart: string; sessions: WeekSessions },
+  toDateIso: string,
+): WeekSessions {
+  const result = structuredClone(week.sessions) as WeekSessions;
+  const startIndex = weekDayIndex(week.weekStart);
+  const toIndex = Math.max(startIndex - 1, weekDayIndex(toDateIso));
+  for (let index = toIndex + 1; index < WEEK_DAYS.length; index += 1) {
+    result[WEEK_DAYS[index]] = [];
+  }
+  return result;
 }
 
 function addDays(dateIso: string, days: number): string {

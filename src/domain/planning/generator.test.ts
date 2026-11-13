@@ -212,6 +212,41 @@ describe('generatePlan multi-week horizon', () => {
     expect(plan.goalDate).toBe('2026-11-08');
   });
 
+  it('expands the block until the goal date', () => {
+    const profile = makeProfile();
+    const plan = generatePlan(profile, defaultPlanConfig(), '2026-10-12T10:00:00Z', undefined, {
+      goalDate: '2026-11-08',
+    });
+    expect(plan.goalDate).toBe('2026-11-08');
+    expect(plan.weeks.map((w) => w.weekStart)).toEqual([
+      '2026-10-12', '2026-10-19', '2026-10-26', '2026-11-02',
+    ]);
+  });
+
+  it('ends the goal week exactly on the goal date', () => {
+    const profile = makeProfile();
+    // Objetivo el miércoles 14: la semana única termina ese día.
+    const plan = generatePlan(profile, defaultPlanConfig(), '2026-10-12T10:00:00Z', undefined, {
+      goalDate: '2026-10-14',
+    });
+    expect(plan.weeks).toHaveLength(1);
+    expect(Object.values(plan.weeks[0].sessions).flat()).toHaveLength(3);
+    expect(plan.weeks[0].sessions.thu).toEqual([]);
+    expect(plan.weeks[0].sessions.sat).toEqual([]);
+  });
+
+  it('trims the sessions of days already past in the current week', () => {
+    const profile = makeProfile();
+    // Hoy es miércoles 14: lunes y martes ya pasaron.
+    const plan = generatePlan(profile, defaultPlanConfig(), '2026-10-14T10:00:00Z', undefined, { weeks: 2 });
+    expect(plan.weeks[0].sessions.mon).toEqual([]);
+    expect(plan.weeks[0].sessions.tue).toEqual([]);
+    const remaining = Object.values(plan.weeks[0].sessions).flat();
+    expect(remaining.length).toBeGreaterThan(0);
+    const week2Count = Object.values(plan.weeks[1].sessions).flat().length;
+    expect(week2Count).toBeGreaterThan(remaining.length);
+  });
+
   it('clamps the horizon to 26 weeks', () => {
     const profile = makeProfile();
     const plan = generatePlan(profile, defaultPlanConfig(), '2026-10-12T10:00:00Z', undefined, { weeks: 100 });

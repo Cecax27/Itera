@@ -191,7 +191,7 @@ export function RootStackComponent() {
               onDeleteSession={trainingHistory.deleteSession}
               onRegisterPlanned={openPlannedRegistration}
               onRegisterFree={openFreeRegistration}
-              onOpenSessionDetail={(day, index) => navigation.navigate('SessionDetail', { day, index })}
+              onOpenSessionDetail={(day, index, weekStart) => navigation.navigate('SessionDetail', { day, index, weekStart })}
               activeTraining={activeTrainingState.active}
               activeTrainingLoading={activeTrainingState.loading}
               onResumeActive={() => {
@@ -431,7 +431,7 @@ function MainTabs({
   onDeleteSession: (sessionId: string) => Promise<void>;
   onRegisterPlanned: (session: Session, date: string, day: WeekDay, index: number) => void;
   onRegisterFree: (date: string) => void;
-  onOpenSessionDetail: (day: WeekDay, index: number) => void;
+  onOpenSessionDetail: (day: WeekDay, index: number, weekStart: string) => void;
   onOpenSettings: () => void;
   activeTraining: ActiveTrainingSession | null;
   activeTrainingLoading: boolean;

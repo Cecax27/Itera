@@ -28,6 +28,7 @@ import {
   WEEK_DAYS,
   WeekDay,
 } from './plan-change';
+import { buildPlanBlock } from './plan-block';
 
 // --- Entrada del cliente (brief) ---
 
@@ -247,25 +248,58 @@ export function assembleDraftPlan(
     sessions[day] = output.sessions[day].map(normalizeSession);
   }
 
-  const plan = CurrentPlanSchema.parse({
+  // El plan es un bloque: el modelo solo diseña la semana plantilla y el
+  // motor determinista la expande (hasta la fecha objetivo, si la hay),
+  // igual que hace el asistente al proponer bloques multi-semana. Así el
+  // plan cubre desde hoy hasta la fecha elegida, no solo una semana.
+  const today = now.slice(0, 10);
+  const weekStart = input.mondayOf(now);
+  const goalDate = input.brief.objective.targetDate;
+  const basePlan = CurrentPlanSchema.parse({
     id: 'draft',
-    weekStart: input.mondayOf(now),
+    weekStart,
+    // La fecha objetivo solo cuenta si aún no ha pasado.
+    ...(goalDate && goalDate >= today ? { goalDate } : {}),
     config,
-    sessions,
+    weeks: [{ weekStart, sessions }],
     createdAt: now,
   });
 
-  validatePlanCoherence(plan, availability);
+  const plan = buildPlanBlock(
+    basePlan,
+    basePlan.goalDate ? { goalDate: basePlan.goalDate } : { weeks: 1 },
+    now,
+  );
 
-  const count = WEEK_DAYS.reduce((sum, day) => sum + plan.sessions[day].length, 0);
-  if (count === 0) throw new Error('El modelo devolvió un plan sin sesiones.');
+  // Si al recortar los días ya pasados el bloque se queda sin ninguna
+  // sesión (p. ej. se genera un plan de una semana un viernes y la
+  // plantilla no tiene sesión de fin de semana), extendemos el horizonte
+  // una semana más para que el plan siga siendo utilizable.
+  const totalSessions = (candidate: PlanRecord) => candidate.weeks.reduce(
+    (total, week) => total + WEEK_DAYS.reduce((sum, day) => sum + week.sessions[day].length, 0),
+    0,
+  );
+  const expanded = basePlan.goalDate
+    ? plan
+    : totalSessions(plan) === 0
+      ? buildPlanBlock(basePlan, { weeks: 2 }, now)
+      : plan;
+
+  validatePlanCoherence(expanded, availability);
+
+  const count = totalSessions(expanded);
+  if (count === 0) {
+    throw new Error(basePlan.goalDate
+      ? 'No queda ninguna sesión por hacer antes de la fecha objetivo.'
+      : 'El modelo devolvió un plan sin sesiones.');
+  }
 
   const safeAssumptions = experience
     ? output.assumptions
     : [...output.assumptions, 'No se pudo confirmar el nivel de experiencia.'];
 
   return {
-    plan,
+    plan: expanded,
     explanation: output.explanation,
     knownFacts: output.knownFacts,
     assumptions: safeAssumptions,

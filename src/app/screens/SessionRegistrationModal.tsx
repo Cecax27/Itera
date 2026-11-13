@@ -174,11 +174,6 @@ export function SessionRegistrationModal({ target, onClose, onSaved }: SessionRe
         </View>
 
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Text style={[styles.title, { color: tokens.colors.ink }]}>{title}</Text>
-          <Text style={[styles.subtitle, { color: tokens.colors.textSecondary }]}>
-            {target.source === 'planned' ? 'Planificado y realizado quedan guardados por separado.' : 'Entrenamiento no incluido en el plan.'}
-            {'\n'}{target.date}
-          </Text>
 
           {target.source === 'free' && (
             <View style={styles.disciplinePicker}>
@@ -191,10 +186,9 @@ export function SessionRegistrationModal({ target, onClose, onSaved }: SessionRe
             <View style={styles.loading}><ActivityIndicator color={tokens.colors.accent} /></View>
           ) : discipline === 'strength' ? (
             <>
-              <Text style={[styles.sectionTitle, { color: tokens.colors.ink }]}>Series realizadas</Text>
               <Text style={[styles.helper, { color: tokens.colors.textSecondary, marginBottom: 8 }]}>Usa 0 kg si fue un ejercicio con peso corporal.</Text>
               {exercises.map((exercise, exerciseIndex) => (
-                <View key={exercise.id} style={[styles.exerciseCard, { borderColor: tokens.colors.border, backgroundColor: tokens.colors.surfaceElevated }]}>
+                <View key={exercise.id} style={[styles.exerciseCard, { borderColor: tokens.colors.accent, backgroundColor: tokens.colors.surfaceElevated }]}>
                   {target.source === 'free' ? (
                     <TextInput
                       accessibilityLabel={`Nombre del ejercicio ${exerciseIndex + 1}`}
@@ -205,14 +199,16 @@ export function SessionRegistrationModal({ target, onClose, onSaved }: SessionRe
                       style={[styles.exerciseNameInput, { color: tokens.colors.ink, borderColor: tokens.colors.border }]}
                     />
                   ) : (
-                    <Text style={[styles.exerciseName, { color: tokens.colors.ink }]}>{exercise.name}</Text>
+                    <Text style={[styles.exerciseName]}>{exercise.name}</Text>
                   )}
                   {exercise.sets.map((set, setIndex) => (
-                    <View key={set.id} style={[styles.setBlock, { borderTopColor: tokens.colors.border }]}>
-                      <Text style={[styles.setTitle, { color: tokens.colors.textSecondary }]}>Serie {set.number}</Text>
-                      <Text style={[styles.planned, { color: tokens.colors.textSecondary }]}>
-                        Planificado: {exercise.plannedReps ?? '—'} reps · {exercise.plannedWeightKg ?? '—'} kg
-                      </Text>
+                    <View key={set.id} style={[styles.setBlock, { borderTopColor: tokens.colors.accent }]}>
+                      <View style={{flexDirection: 'row', justifyContent:'space-between', alignItems:'center'}}>
+                        <Text style={[styles.setTitle, { color: tokens.colors.textSecondary }]}>Serie {set.number}</Text>
+                        <Text style={[styles.planned, { color: tokens.colors.textSecondary }]}>
+                          Planificado: {exercise.plannedReps ?? '—'} reps · {exercise.plannedWeightKg ?? '—'} kg
+                        </Text>
+                      </View>
                       <View style={styles.fieldsRow}>
                         <NumberField label="Peso (kg)" value={set.weight} onChangeText={(weight) => updateSet(exerciseIndex, setIndex, { weight })} />
                         <NumberField label="Reps" value={set.reps} onChangeText={(reps) => updateSet(exerciseIndex, setIndex, { reps })} integer />
@@ -409,16 +405,18 @@ function RpePicker({ value, onChange }: { value: string; onChange: (value: strin
               accessibilityLabel={`Esfuerzo ${rpe} de 10`}
               style={[
                 styles.rpeOption,
-                { borderColor: selected ? tokens.colors.ink : tokens.colors.border },
-                selected && { backgroundColor: tokens.colors.accent },
+                
               ]}
             >
-              <Text style={[styles.rpeText, { color: selected ? tokens.colors.accentInk : tokens.colors.ink }]}>{rpe}</Text>
+              <Text style={[styles.rpeText, { color: selected ? tokens.colors.accent : tokens.colors.ink, fontWeight: selected ? 800 : 200 }]}>{rpe}</Text>
             </Pressable>
           );
         })}
       </View>
-      <Text style={[styles.helper, { color: tokens.colors.textSecondary }]}>1 muy fácil · 10 esfuerzo máximo</Text>
+      <View style={{flexDirection:'row', justifyContent:'space-between'}}>
+        <Text style={[styles.helper, { color: tokens.colors.textSecondary }]}>Muy fácil</Text>
+        <Text style={[styles.helper, { color: tokens.colors.textSecondary }]}>Esfuerzo máximo</Text>
+      </View>
     </View>
   );
 }
@@ -466,7 +464,7 @@ function makeStyles(tokens: ReturnType<typeof useThemeTokens>) {
     disciplineText: { fontSize: 15, fontWeight: '600' },
     sectionTitle: { fontSize: 20, fontWeight: '600', marginBottom: 12 },
     exerciseCard: { borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 12 },
-    exerciseName: { fontSize: 18, fontWeight: '600', marginBottom: 4 },
+    exerciseName: { fontSize: 16, fontWeight: '500', color:tokens.colors.accent },
     exerciseNameInput: { minHeight: 48, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, fontSize: 17, fontWeight: '600', marginBottom: 4 },
     setBlock: { borderTopWidth: 1, marginTop: 12, paddingTop: 12 },
     setTitle: { fontSize: 13, fontWeight: '600' },
@@ -476,9 +474,9 @@ function makeStyles(tokens: ReturnType<typeof useThemeTokens>) {
     fieldLabel: { fontSize: 12, fontWeight: '500', marginBottom: 6 },
     input: { minHeight: 48, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, fontSize: 16 },
     rpeWrapper: { marginTop: 12 },
-    rpeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-    rpeOption: { width: 34, height: 40, borderWidth: 1, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-    rpeText: { fontSize: 14, fontWeight: '600' },
+    rpeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 1, justifyContent:'space-between' },
+    rpeOption: { alignItems: 'center', justifyContent: 'center', color:tokens.colors.mutedText },
+    rpeText: { fontSize: 14, fontWeight: '600', paddingHorizontal:9 },
     helper: { fontSize: 12, marginTop: 6 },
     textAction: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', marginTop: 8 },
     actionText: { fontSize: 14, fontWeight: '600' },

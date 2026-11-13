@@ -32,6 +32,7 @@ import {
   Session,
   StrengthExercise,
   StrengthSession,
+  WeekPlan,
 } from './plan';
 
 const DEFAULT_DURATION_MINUTES = 45;
@@ -82,6 +83,11 @@ export function countAvailableDays(avail: WeeklyAvailability): number {
  *   - La última semana es descarga de objetivo (×0.7) para llegar
  *     fresco a la fecha.
  *
+ * La fecha objetivo (`horizon.goalDate`) determina el número de semanas
+ * del bloque y la última semana termina exactamente ese día. Además,
+ * si la generación ocurre a mitad de semana, la primera semana descarta
+ * las sesiones de los días ya pasados.
+ *
  * @param profile perfil del usuario.
  * @param config configuración del plan (min/max sesiones, duración).
  * @param now fecha de generación, ISO 8601. Se usa para createdAt y
@@ -113,24 +119,47 @@ export function generatePlan(
   const sessionsByDay = assignSessionsToDays(sessions, profile.availability);
 
   const startMonday = mondayOf(now);
-  const totalWeeks = clampWeeks(horizon);
-  const weeks = totalWeeks <= 1
+  const totalWeeks = totalWeeksOf(horizon, startMonday);
+  const weekStarts = totalWeeks <= 1
     ? [startMonday]
     : expandWeekStarts(startMonday, totalWeeks);
+
+  const weeks = weekStarts.map((weekStart, index) => ({
+    weekStart,
+    sessions: index === 0
+      ? sessionsByDay
+      : applyWeeklyProgression(sessionsByDay, index, totalWeeks),
+  }));
+
+  // Si el bloque se genera a mitad de semana, la primera semana no
+  // debe proponer entrenamientos de días ya pasados.
+  weeks[0] = dropSessionsBefore(weeks[0], now);
+
+  // Con fecha objetivo, la última semana termina exactamente ese día.
+  if (horizon?.goalDate && horizon.goalDate >= now.slice(0, 10)) {
+    weeks[weeks.length - 1] = dropSessionsAfter(weeks[weeks.length - 1], horizon.goalDate);
+  }
 
   return {
     id: idFn(),
     weekStart: startMonday,
     ...(horizon?.goalDate ? { goalDate: horizon.goalDate } : {}),
     config,
-    weeks: weeks.map((weekStart, index) => ({
-      weekStart,
-      sessions: index === 0
-        ? sessionsByDay
-        : applyWeeklyProgression(sessionsByDay, index, totalWeeks),
-    })),
+    weeks,
     createdAt: now,
   };
+}
+
+/**
+ * Número de semanas del bloque. La fecha objetivo tiene prioridad sobre
+ * el número de semanas pedido; sin horizonte es una sola semana.
+ * (Espejo de `resolveWeekCount` en functions/src/plan-block.ts.)
+ */
+function totalWeeksOf(horizon: PlanHorizon | undefined, startMonday: string): number {
+  if (horizon?.goalDate) {
+    return Math.max(1, Math.min(MAX_PLAN_WEEKS, weeksUntilMonday(horizon.goalDate, startMonday)));
+  }
+  return clampWeeks(horizon);
 }
 
 /** Número de semanas completas entre un lunes y la fecha objetivo. */
@@ -160,6 +189,54 @@ function expandWeekStarts(startMonday: string, count: number): string[] {
     result.push(date.toISOString().slice(0, 10));
   }
   return result;
+}
+
+/** Índice del día de la semana de una fecha ISO (0 = lunes … 6 = domingo). */
+function weekDayIndexOf(dateIso: string): number {
+  const [y, m, d] = dateIso.slice(0, 10).split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return (date.getUTCDay() + 6) % 7;
+}
+
+/**
+ * Devuelve la semana sin las sesiones de los días anteriores a
+ * `fromDateIso`. Se usa en la semana en curso cuando el bloque se genera
+ * a mitad de semana: los días ya pasados no deben figurar como
+ * entrenamientos pendientes.
+ * (Espejo de `dropSessionsBefore` en functions/src/plan-block.ts.)
+ */
+export function dropSessionsBefore(week: WeekPlan, fromDateIso: string): WeekPlan {
+  const startIndex = weekDayIndexOf(week.weekStart);
+  const fromIndex = Math.max(startIndex, weekDayIndexOf(fromDateIso));
+  return {
+    ...week,
+    sessions: Object.fromEntries(
+      ALL_WEEK_DAYS.map((day, index) => [
+        day,
+        index >= startIndex && index < fromIndex ? [] : week.sessions[day],
+      ]),
+    ) as Record<WeekDay, readonly Session[]>,
+  };
+}
+
+/**
+ * Devuelve la semana sin las sesiones de los días posteriores a
+ * `toDateIso`. Se usa en la semana objetivo para que el bloque termine
+ * exactamente en la fecha objetivo.
+ * (Espejo de `dropSessionsAfter` en functions/src/plan-block.ts.)
+ */
+export function dropSessionsAfter(week: WeekPlan, toDateIso: string): WeekPlan {
+  const startIndex = weekDayIndexOf(week.weekStart);
+  const toIndex = Math.max(startIndex - 1, weekDayIndexOf(toDateIso));
+  return {
+    ...week,
+    sessions: Object.fromEntries(
+      ALL_WEEK_DAYS.map((day, index) => [
+        day,
+        index > toIndex && index >= startIndex ? [] : week.sessions[day],
+      ]),
+    ) as Record<WeekDay, readonly Session[]>,
+  };
 }
 
 /**

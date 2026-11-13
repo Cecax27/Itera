@@ -90,10 +90,10 @@ export function SessionDetailScreen({
             size={22}
             color={isStrength ? tokens.colors.accent : tokens.colors.accentRun}
           />
-        </View>
         <Text style={styles.heroMeta}>
           {isStrength ? 'FUERZA' : 'CARRERA'} · ~{session.estimatedDurationMinutes} min
         </Text>
+        </View>
         <Text style={styles.heroTitle}>{sessionTitle(session)}</Text>
         {session.purpose ? (
           <Text style={styles.heroPurpose}>{session.purpose}</Text>
@@ -103,10 +103,10 @@ export function SessionDetailScreen({
       {/* Contenido detallado: ejercicios de fuerza o bloques de carrera. */}
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>{isStrength ? 'EJERCICIOS' : 'BLOQUES'}</Text>
-        <Card accent={isStrength ? 'lime' : 'run'} padding="lg">
+        <Card accent={isStrength ? 'lime' : 'run'} padding="sm">
           {isStrength
             ? session.exercises.map((exercise, i) => (
-              <View key={exercise.id} style={i > 0 ? styles.rowSpacing : undefined}>
+              <View key={exercise.id} style={[i > 0 ? styles.rowSpacing : undefined, styles.exerciseCard]}>
                 <Text style={styles.itemName}>{exercise.name}</Text>
                 <Text style={styles.itemDetail}>
                   {exercise.sets} × {exercise.reps} ·{' '}
@@ -287,15 +287,13 @@ function makeStyles(tokens: ReturnType<typeof useThemeTokens>) {
       lineHeight: 22,
     },
     hero: {
-      marginBottom: tokens.spacing.lg,
+      marginBottom: tokens.spacing.lg
     },
     disciplineIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
       alignItems: 'center',
-      justifyContent: 'center',
       marginBottom: tokens.spacing.md,
+      flexDirection: 'row',
+      justifyContent: 'space-between'
     },
     heroMeta: {
       fontSize: tokens.fontSize.caption,
@@ -304,15 +302,15 @@ function makeStyles(tokens: ReturnType<typeof useThemeTokens>) {
       color: tokens.colors.textSecondary,
     },
     heroTitle: {
-      fontSize: tokens.fontSize.titleBig,
+      fontSize: tokens.fontSize.titleScreen,
       fontWeight: tokens.fontWeight.bold,
       color: tokens.colors.ink,
       letterSpacing: -0.5,
       marginTop: 2,
     },
     heroPurpose: {
-      fontSize: tokens.fontSize.body,
-      lineHeight: 22,
+      fontSize: tokens.fontSize.label,
+      lineHeight: 20,
       color: tokens.colors.textSecondary,
       marginTop: tokens.spacing.sm,
     },
@@ -327,11 +325,11 @@ function makeStyles(tokens: ReturnType<typeof useThemeTokens>) {
       marginBottom: tokens.spacing.sm,
     },
     rowSpacing: {
-      marginTop: tokens.spacing.md,
+      marginTop: tokens.spacing.lg,
     },
     itemName: {
-      fontSize: tokens.fontSize.bodyLg,
-      fontWeight: tokens.fontWeight.semibold,
+      fontSize: tokens.fontSize.body,
+      fontWeight: tokens.fontWeight.medium,
       color: tokens.colors.ink,
     },
     itemDetail: {
@@ -346,12 +344,18 @@ function makeStyles(tokens: ReturnType<typeof useThemeTokens>) {
     },
     actions: {
       marginTop: tokens.spacing.sm,
+      gap: 12
     },
     exportButtonSpacing: {
       marginTop: tokens.spacing.md,
     },
     editButtonSpacing: {
-      marginTop: tokens.spacing.md,
     },
+    exerciseCard: {
+      borderLeftWidth: 2,
+      borderLeftColor: tokens.colors.accent,
+      borderRadius: 1,
+      paddingLeft: 12
+    }
   });
 }
