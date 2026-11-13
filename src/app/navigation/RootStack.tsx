@@ -30,7 +30,7 @@ import { SettingsScreen } from '@/app/screens/SettingsScreen';
 import { TrainingScreen } from '@/app/screens/TrainingScreen';
 import { useThemeTokens } from '@/app/theme';
 import { Profile, WeekDay } from '@/domain/profile';
-import { Plan, Session } from '@/domain/planning';
+import { mondayOf, Plan, Session } from '@/domain/planning';
 import {
   ActiveTrainingSession,
   createFreeSessionRecordId,
@@ -71,7 +71,9 @@ export function RootStackComponent() {
     }
     if (!plan) return;
     setRegistrationTarget({
-      sessionId: plannedSessionRecordId(plan.weekStart, day, index),
+      // El ID del registro planeado ancla a la semana de la fecha: así
+      // funciona igual para la semana en curso y para futuras semanas.
+      sessionId: plannedSessionRecordId(mondayOf(date), day, index),
       date,
       source: 'planned',
       plannedSession: session,
@@ -162,7 +164,7 @@ export function RootStackComponent() {
                 initialQuestion: question,
               })}
               onStartPlanned={(session, date, day, index) => {
-                const sessionId = plannedSessionRecordId(plan?.weekStart ?? '', day, index);
+                const sessionId = plannedSessionRecordId(mondayOf(date), day, index);
                 const start = async () => {
                   if (activeTrainingState.active) {
                     if (activeTrainingState.active.metadata.id === sessionId) {

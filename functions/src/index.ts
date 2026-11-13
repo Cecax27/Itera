@@ -4,7 +4,16 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { logger } from 'firebase-functions';
 
 import { loadAssistantContext } from './context';
-import { applyPlanOperations, CurrentPlanSchema, PlanOperationSchema, validatePlanCoherence, WeekDay } from './plan-change';
+import {
+  applyPlanOperations,
+  parsePlanRecord,
+  PlanBlockProposalSchema,
+  PlanOperationSchema,
+  PlanRecord,
+  validatePlanCoherence,
+  WeekDay,
+} from './plan-change';
+import { buildPlanBlock } from './plan-block';
 import { detectSafetySignal, safetyReply } from './safety';
 import { listAvailableModels, requestAssistantResponse } from './openai-assistant';
 
@@ -56,7 +65,10 @@ export const askAssistant = onCall(
 
     try {
       const context = await loadAssistantContext(db, userId, sessionId);
-      const currentPlan = CurrentPlanSchema.parse(context.currentPlan);
+      // Normalizamos el plan (bloque multi-semana) antes de dárselo al
+      // modelo y de construir propuestas sobre él.
+      const currentPlan = parsePlanRecord(context.currentPlan);
+      context.currentPlan = currentPlan;
       const modelReply = await requestAssistantResponse(apiKey, model, {
         question,
         context,
@@ -73,12 +85,32 @@ export const askAssistant = onCall(
       let assumptions = modelReply.assumptions;
       if (modelReply.proposal) {
         try {
-          if (!modelReply.proposal.reason.trim() || modelReply.proposal.reason.length > 1000) {
-            throw new Error('La propuesta no incluye una explicación válida.');
-          }
-          const operations = modelReply.proposal.operations.map((operation) => PlanOperationSchema.parse(operation));
+          const proposal = modelReply.proposal;
           const profileAvailability = context.profile.availability as Record<WeekDay, readonly unknown[]>;
-          const proposedPlan = applyPlanOperations(currentPlan, { availability: profileAvailability }, operations);
+          let proposedPlan: PlanRecord;
+          let reason: string;
+
+          if (proposal.kind === 'block') {
+            // El asistente solo fija el horizonte; el motor determinista
+            // materializa las semanas con el plan actual como plantilla.
+            const parsedBlock = PlanBlockProposalSchema.parse(proposal);
+            if (!parsedBlock.reason.trim()) throw new Error('La propuesta no incluye una explicación válida.');
+            reason = parsedBlock.reason;
+            proposedPlan = buildPlanBlock(
+              currentPlan,
+              { weeks: parsedBlock.weeks, goalDate: parsedBlock.goalDate },
+              new Date().toISOString(),
+            );
+          } else {
+            if (!proposal.reason.trim() || proposal.reason.length > 1000) {
+              throw new Error('La propuesta no incluye una explicación válida.');
+            }
+            reason = proposal.reason;
+            const operations = proposal.operations.map((operation) => PlanOperationSchema.parse(operation));
+            proposedPlan = applyPlanOperations(currentPlan, { availability: profileAvailability }, operations);
+          }
+
+          validatePlanCoherence(proposedPlan, profileAvailability);
           const changeRef = db.collection('users').doc(userId).collection('planChanges').doc();
           const createdAt = new Date().toISOString();
           const change = {
@@ -87,7 +119,7 @@ export const askAssistant = onCall(
             source: 'assistant' as const,
             previousPlan: currentPlan,
             proposedPlan,
-            reason: modelReply.proposal.reason,
+            reason,
             createdAt,
             resolvedAt: null,
           };
@@ -176,9 +208,9 @@ export const resolvePlanChange = onCall(
         throw new HttpsError('failed-precondition', 'Falta el plan o perfil necesario para aplicar la propuesta.');
       }
 
-      const currentPlan = CurrentPlanSchema.parse(currentPlanSnapshot.data());
-      const previousPlan = CurrentPlanSchema.parse(change.previousPlan);
-      const proposedPlan = CurrentPlanSchema.parse(change.proposedPlan);
+      const currentPlan = parsePlanRecord(currentPlanSnapshot.data());
+      const previousPlan = parsePlanRecord(change.previousPlan);
+      const proposedPlan = parsePlanRecord(change.proposedPlan);
       if (stableStringify(currentPlan) !== stableStringify(previousPlan)) {
         throw new HttpsError('failed-precondition', 'El plan cambió desde que se creó la propuesta. Pide una propuesta nueva.');
       }

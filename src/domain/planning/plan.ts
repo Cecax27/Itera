@@ -126,18 +126,52 @@ export interface PlanConfig {
 }
 
 /**
- * Plan semanal completo con todas sus sesiones ya asignadas.
+ * Una semana del plan con sus sesiones ya asignadas a los días.
+ */
+export interface WeekPlan {
+  /** Lunes de esta semana, en formato YYYY-MM-DD. */
+  weekStart: string;
+  /** Sesiones asignadas por día. Lista vacía = día de descanso. */
+  sessions: Record<WeekDay, readonly Session[]>;
+}
+
+/**
+ * Plan completo: un bloque de una o varias semanas con todas sus
+ * sesiones ya asignadas.
+ *
+ * El modelo multi-semana permite al motor y al asistente construir
+ * bloques con horizonte (por ejemplo, hasta una fecha de objetivo),
+ * mientras que `weekStart` sigue apuntando a la primera semana para que
+ * la persistencia y los registros planeados mantengan su semántica.
  */
 export interface Plan {
   id: string;
-  /** Semana a la que aplica el plan (ISO 8601: lunes en formato YYYY-MM-DD). */
+  /** Lunes de la PRIMERA semana del bloque (ISO 8601, YYYY-MM-DD). */
   weekStart: string;
+  /** Fecha objetivo del bloque (YYYY-MM-DD), si existe. Opcional. */
+  goalDate?: string;
   /** Configuración usada para generar este plan. */
   config: PlanConfig;
-  /** Sesiones asignadas por día. Lista vacía = día de descanso. */
-  sessions: Record<WeekDay, readonly Session[]>;
+  /** Semanas del bloque, en orden cronológico y contiguo (7 días entre sí). */
+  weeks: readonly WeekPlan[];
   /** Fecha de creación, ISO 8601. */
   createdAt: string;
+}
+
+/**
+ * Normaliza un plan que llega de persistencia. Los planes antiguos
+ * guardaban una única semana con `sessions` por día y sin `weeks`;
+ * aquí se convierten a la forma de bloque de una semana.
+ */
+export function normalizePlan(raw: Plan): Plan {
+  const weeks = (raw as { weeks?: unknown }).weeks;
+  if (Array.isArray(weeks) && weeks.length > 0) return raw;
+  const legacy = raw as unknown as Plan & { sessions: Record<WeekDay, readonly Session[]> };
+  const { sessions, ...rest } = legacy;
+  return {
+    ...rest,
+    weeks: [{ weekStart: raw.weekStart, sessions }],
+  };
 }
 
 /**

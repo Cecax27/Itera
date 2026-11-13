@@ -77,7 +77,21 @@ export function computeWeeklyTrainingSummary(
     0,
   );
 
-  if (!plan || plan.weekStart !== weekStart) {
+  if (!plan) {
+    return {
+      weekStart,
+      runningDistanceMeters,
+      strengthVolumeKg,
+      completedPlannedSessions: 0,
+      plannedSessions: 0,
+      adherencePercent: null,
+    };
+  }
+
+  // El plan es un bloque de semanas: la adherencia usa la semana que
+  // contiene hoy, no necesariamente la primera.
+  const weekPlan = plan.weeks.find((week) => week.weekStart === weekStart) ?? null;
+  if (!weekPlan) {
     return {
       weekStart,
       runningDistanceMeters,
@@ -90,9 +104,9 @@ export function computeWeeklyTrainingSummary(
 
   const planned: Array<{ id: string; session: Session }> = [];
   ALL_WEEK_DAYS.forEach((day: WeekDay) => {
-    plan.sessions[day].forEach((session, index) => {
+    weekPlan.sessions[day].forEach((session, index) => {
       planned.push({
-        id: plannedSessionRecordId(plan.weekStart, day, index),
+        id: plannedSessionRecordId(weekPlan.weekStart, day, index),
         session,
       });
     });

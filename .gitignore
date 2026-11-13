@@ -48,6 +48,8 @@ expo-env.d.ts
 hs_err_pid*
 replay_pid*
 .gradle/
+android/app/*
+
 
 # Xcode / iOS (no son objetivo, por si se crean al generar un proyecto Expo iOS sin querer)
 *.pbxuser

@@ -16,11 +16,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, Card } from '@/app/components';
 import { AssistantMessage, useAssistant } from '@/app/hooks/useAssistant';
-import { Plan, Session } from '@/domain/planning';
+import { ALL_WEEK_DAYS, WeekDay } from '@/domain/profile';
+import { normalizePlan, Plan, Session } from '@/domain/planning';
 import { PlanChange, PlanChangeStatus } from '@/domain/assistant';
 import { useThemeTokens } from '@/app/theme';
 
-const DAY_LABELS: Record<keyof Plan['sessions'], string> = {
+const DAY_LABELS: Record<WeekDay, string> = {
   mon: 'Lunes', tue: 'Martes', wed: 'Miércoles', thu: 'Jueves',
   fri: 'Viernes', sat: 'Sábado', sun: 'Domingo',
 };
@@ -278,7 +279,12 @@ function PlanChangeCard({
   const statusLabel = change.status === 'proposed'
     ? 'PROPUESTA'
     : change.status === 'accepted' ? 'ACEPTADA' : 'RECHAZADA';
-  const dayChanges = describePlanChanges(change.previousPlan, change.proposedPlan);
+  const previous = normalizePlan(change.previousPlan);
+  const proposed = normalizePlan(change.proposedPlan);
+  const blockLabel = proposed.weeks.length > previous.weeks.length
+    ? `NUEVO BLOQUE · ${proposed.weeks.length} semanas${proposed.goalDate ? ` · hasta ${proposed.goalDate}` : ''}`
+    : null;
+  const dayChanges = describePlanChanges(previous, proposed);
 
   return (
     <View style={styles.proposal}>
@@ -287,6 +293,7 @@ function PlanChangeCard({
         <Text style={styles.proposalDate}>{formatDate(change.createdAt)}</Text>
       </View>
       <Text style={styles.proposalReason}>{change.reason}</Text>
+      {blockLabel ? <Text style={styles.proposalChange}>{blockLabel}</Text> : null}
       {dayChanges.slice(0, 5).map((line) => (
         <Text key={line} style={styles.proposalChange}>{line}</Text>
       ))}
@@ -326,13 +333,33 @@ function Suggestion({ label, onPress }: { label: string; onPress: () => void }) 
 }
 
 function describePlanChanges(previous: Plan, proposed: Plan): string[] {
-  const days = Object.keys(previous.sessions) as Array<keyof Plan['sessions']>;
-  return days.flatMap((day) => {
-    const before = previous.sessions[day];
-    const after = proposed.sessions[day];
-    if (JSON.stringify(before) === JSON.stringify(after)) return [];
-    return [`${DAY_LABELS[day]}: ${describeDay(before)} → ${describeDay(after)}`];
-  });
+  const before = weekByStart(previous);
+  const after = weekByStart(proposed);
+
+  const lines: string[] = [];
+  for (const week of after.values()) {
+    const old = before.get(week.weekStart);
+    const changed = ALL_WEEK_DAYS.some((day) =>
+      JSON.stringify(old?.sessions[day] ?? []) !== JSON.stringify(week.sessions[day]));
+    if (!changed) continue;
+    const summary = describeWeek(week.sessions);
+    const beforeSummary = old ? describeWeek(old.sessions) : null;
+    lines.push(`Semana del ${week.weekStart}: ${beforeSummary ?? 'nueva'} → ${summary}`);
+  }
+  return lines;
+}
+
+function weekByStart(plan: Plan): Map<string, { weekStart: string; sessions: Record<WeekDay, readonly Session[]> }> {
+  return new Map<string, { weekStart: string; sessions: Record<WeekDay, readonly Session[]> }>(
+    plan.weeks.map((week) => [week.weekStart, week]),
+  );
+}
+
+function describeWeek(sessions: Record<WeekDay, readonly Session[]>): string {
+  const parts = ALL_WEEK_DAYS
+    .filter((day) => sessions[day].length > 0)
+    .map((day) => `${DAY_LABELS[day].slice(0, 2)}: ${describeDay(sessions[day])}`);
+  return parts.length > 0 ? parts.join(' · ') : 'Sin sesiones';
 }
 
 function describeDay(sessions: readonly Session[]): string {

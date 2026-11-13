@@ -36,15 +36,18 @@ const plan: Plan = {
   weekStart: '2026-10-12',
   config: defaultPlanConfig(),
   createdAt: '2026-10-12T08:00:00.000Z',
-  sessions: {
-    mon: [runSession],
-    tue: [strengthSession],
-    wed: [],
-    thu: [],
-    fri: [],
-    sat: [],
-    sun: [],
-  },
+  weeks: [{
+    weekStart: '2026-10-12',
+    sessions: {
+      mon: [runSession],
+      tue: [strengthSession],
+      wed: [],
+      thu: [],
+      fri: [],
+      sat: [],
+      sun: [],
+    },
+  }],
 };
 
 function makeRecord(
@@ -170,8 +173,37 @@ describe('computeWeeklyTrainingSummary', () => {
     expect(filterTrainingHistory([active], 'all', 'all', '2026-10-16')).toEqual([]);
   });
 
-  it('omits adherence when the active plan is not for this week', () => {
-    expect(computeWeeklyTrainingSummary([], { ...plan, weekStart: '2026-10-05' }, '2026-10-16').adherencePercent)
+  it('omits adherence when the active plan has no week for the current one', () => {
+    expect(computeWeeklyTrainingSummary([], { ...plan, weeks: [] }, '2026-10-16').adherencePercent)
       .toBeNull();
+  });
+
+  it('uses the block week that contains today, not only the first week', () => {
+    const blockPlan: Plan = {
+      ...plan,
+      weeks: [
+        plan.weeks[0],
+        {
+          weekStart: '2026-10-19',
+          sessions: {
+            mon: [runSession],
+            tue: [],
+            wed: [],
+            thu: [],
+            fri: [],
+            sat: [],
+            sun: [],
+          },
+        },
+      ],
+    };
+    const summary = computeWeeklyTrainingSummary(
+      [makeRecord('planned_2026-10-19_mon_1', '2026-10-19', 'running')],
+      blockPlan,
+      '2026-10-21',
+    );
+    expect(summary.plannedSessions).toBe(1);
+    expect(summary.completedPlannedSessions).toBe(1);
+    expect(summary.adherencePercent).toBe(100);
   });
 });

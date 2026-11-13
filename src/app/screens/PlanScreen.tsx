@@ -1,14 +1,16 @@
-// Pantalla del plan semanal. Muestra los 7 días con su sesión si la hay.
-// Por ahora es solo lectura; la edición llega en un hito posterior.
+// Pantalla del plan. Muestra las semanas del bloque con sus 7 días y la
+// sesión de cada uno. Por ahora es solo lectura; la edición llega en un
+// hito posterior.
 
-import { useCallback } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Button, Card, RecordedSessionCard, Screen as ScreenLayout } from '@/app/components';
 import { FadeIn } from '@/app/animations';
+import { Ionicons } from '@expo/vector-icons';
 import { ALL_WEEK_DAYS, WeekDay } from '@/domain/profile';
-import { dateForWeekDay, Plan, Session } from '@/domain/planning';
+import { dateForWeekDay, mondayOf, Plan, Session } from '@/domain/planning';
 import { useThemeTokens } from '@/app/theme';
 import { ActiveTrainingSession, plannedSessionRecordId, RecordedTrainingSession } from '@/domain/training';
 
@@ -58,6 +60,21 @@ export function PlanScreen({
     void onRefreshHistory();
   }, [onRefreshHistory]));
 
+  // Semana seleccionada: por defecto la que contiene hoy (si está en el
+  // bloque); si hoy está fuera, la última pasada o la primera.
+  const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const defaultWeekIndex = useMemo(() => {
+    if (!plan || plan.weeks.length === 0) return 0;
+    const todayMonday = mondayOf(todayIso);
+    const index = plan.weeks.findIndex((week) => week.weekStart === todayMonday);
+    if (index >= 0) return index;
+    return todayIso < plan.weeks[0].weekStart ? 0 : plan.weeks.length - 1;
+  }, [plan, todayIso]);
+  const [weekIndex, setWeekIndex] = useState(defaultWeekIndex);
+  const clampedIndex = plan && plan.weeks.length > 0
+    ? Math.min(Math.max(weekIndex, 0), plan.weeks.length - 1)
+    : 0;
+
   if (!plan) {
     return (
       <ScreenLayout scroll>
@@ -77,23 +94,39 @@ export function PlanScreen({
     );
   }
 
-  const today = new Date();
-  const currentDay = ALL_WEEK_DAYS[(today.getUTCDay() + 6) % 7]; // ajustar a L=0
+  const week = plan.weeks[clampedIndex] ?? plan.weeks[0];
+  const todayDate = todayIso;
+  const goalLabel = plan.goalDate ? formatDateLabel(plan.goalDate) : null;
 
   return (
     <ScreenLayout scroll>
       <FadeIn delay={0}>
         <View style={styles.header}>
           <Text style={styles.title}>Tu plan</Text>
-          <Text style={styles.meta}>
-            Semana del {plan.weekStart} · {Object.values(plan.sessions).reduce((s, l) => s + l.length, 0)} sesiones
-          </Text>
+          {plan.weeks.length > 1 ? (
+            <WeekSelector
+              index={clampedIndex}
+              total={plan.weeks.length}
+              weekStart={week.weekStart}
+              sessionCount={countSessions(week)}
+              onChange={setWeekIndex}
+              styles={styles}
+              tokens={tokens}
+            />
+          ) : (
+            <Text style={styles.meta}>
+              Semana del {week.weekStart} · {countSessions(week)} sesiones
+            </Text>
+          )}
+          {goalLabel ? (
+            <Text style={styles.goalLabel}>Objetivo: {goalLabel}</Text>
+          ) : null}
         </View>
       </FadeIn>
 
       {ALL_WEEK_DAYS.map((day, i) => {
-        const sessions = plan.sessions[day];
-        const isToday = day === currentDay;
+        const sessions = week.sessions[day];
+        const isToday = dateForWeekDay(week.weekStart, day) === todayDate;
         return (
           <FadeIn key={day} delay={60 + i * 40}>
             <View style={[styles.dayRow, isToday && styles.todayRow]}>
@@ -117,13 +150,13 @@ export function PlanScreen({
                   <PlannedSessionCard
                     key={j}
                     session={session}
-                    plan={plan}
+                    weekStart={week.weekStart}
                     day={day}
                     index={j}
-                    record={recordedSessions.find((candidate) => candidate.metadata.id === plannedSessionRecordId(plan.weekStart, day, j)) ?? null}
+                    record={recordedSessions.find((candidate) => candidate.metadata.id === plannedSessionRecordId(week.weekStart, day, j)) ?? null}
                     activeTraining={activeTraining}
                     historyLoading={historyLoading}
-                    onRegister={() => onRegisterPlanned(session, dateForWeekDay(plan.weekStart, day), day, j)}
+                    onRegister={() => onRegisterPlanned(session, dateForWeekDay(week.weekStart, day), day, j)}
                   />
                 ))
               )}
@@ -142,9 +175,63 @@ export function PlanScreen({
   );
 }
 
+function countSessions(week: { sessions: Record<WeekDay, readonly Session[]> }): number {
+  return Object.values(week.sessions).reduce((sum, list) => sum + list.length, 0);
+}
+
+function WeekSelector({
+  index,
+  total,
+  weekStart,
+  sessionCount,
+  onChange,
+  styles,
+  tokens,
+}: {
+  index: number;
+  total: number;
+  weekStart: string;
+  sessionCount: number;
+  onChange: (next: number) => void;
+  styles: ReturnType<typeof makeStyles>;
+  tokens: ReturnType<typeof useThemeTokens>;
+}) {
+  return (
+    <View style={styles.weekSelector}>
+      <Pressable
+        onPress={() => onChange(index - 1)}
+        disabled={index <= 0}
+        accessibilityRole="button"
+        accessibilityLabel="Semana anterior"
+        style={[styles.weekArrow, index <= 0 && styles.weekArrowDisabled]}
+      >
+        <Ionicons name="chevron-back" size={18} color={tokens.colors.ink} />
+      </Pressable>
+      <Text style={styles.meta}>
+        Semana {index + 1} de {total} · del {weekStart} · {sessionCount} sesiones
+      </Text>
+      <Pressable
+        onPress={() => onChange(index + 1)}
+        disabled={index >= total - 1}
+        accessibilityRole="button"
+        accessibilityLabel="Semana siguiente"
+        style={[styles.weekArrow, index >= total - 1 && styles.weekArrowDisabled]}
+      >
+        <Ionicons name="chevron-forward" size={18} color={tokens.colors.ink} />
+      </Pressable>
+    </View>
+  );
+}
+
+function formatDateLabel(dateIso: string): string {
+  const date = new Date(`${dateIso.slice(0, 10)}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return dateIso;
+  return new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(date);
+}
+
 function PlannedSessionCard({
   session,
-  plan,
+  weekStart,
   day,
   index,
   record,
@@ -153,7 +240,7 @@ function PlannedSessionCard({
   onRegister,
 }: {
   session: Session;
-  plan: Plan;
+  weekStart: string;
   day: WeekDay;
   index: number;
   record: RecordedTrainingSession | null;
@@ -162,7 +249,7 @@ function PlannedSessionCard({
   onRegister: () => void;
 }) {
   const tokens = useThemeTokens();
-  const currentSessionId = plannedSessionRecordId(plan.weekStart, day, index);
+  const currentSessionId = plannedSessionRecordId(weekStart, day, index);
   const activeThisSession = activeTraining?.metadata.id === currentSessionId
     && (activeTraining.progress.status === 'active' || activeTraining.progress.status === 'paused');
   const persistedActiveThisSession = record?.metadata.trainingProgress?.status === 'active'
@@ -283,6 +370,28 @@ function makeStyles(tokens: ReturnType<typeof useThemeTokens>) {
       fontSize: tokens.fontSize.body,
       color: tokens.colors.textSecondary,
       fontVariant: ['tabular-nums'],
+    },
+    goalLabel: {
+      fontSize: tokens.fontSize.caption,
+      color: tokens.colors.textSecondary,
+      marginTop: 2,
+      textTransform: 'capitalize',
+    },
+    weekSelector: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: tokens.spacing.xs,
+    },
+    weekArrow: {
+      width: tokens.minTouch,
+      height: tokens.minTouch,
+      borderRadius: tokens.radius.pill,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: tokens.colors.surface,
+    },
+    weekArrowDisabled: {
+      opacity: 0.3,
     },
     dayRow: {
       paddingVertical: tokens.spacing.md,

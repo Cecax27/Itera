@@ -23,6 +23,7 @@ import {
   getNextSession,
   getTodaySessions,
   weekDayOf,
+  weekPlanForDate,
 } from '@/domain/planning';
 import { WeekDay } from '@/domain/profile';
 import { ActiveTrainingSession, plannedSessionRecordId, RecordedTrainingSession } from '@/domain/training';
@@ -72,6 +73,8 @@ export function TodayScreen({
   const todayIso = useMemo(() => new Date().toISOString(), []);
   const day = plan ? weekDayOf(todayIso) : 'mon';
   const todayLabel = plan ? DAY_LABELS[day] : 'Hoy';
+  const currentWeek = plan ? weekPlanForDate(plan, todayIso) : null;
+  const plannedWeekStart = currentWeek?.weekStart ?? plan?.weekStart ?? '';
 
   useFocusEffect(useCallback(() => {
     void onRefreshHistory();
@@ -86,7 +89,7 @@ export function TodayScreen({
         <View style={styles.empty}>
           <Text style={styles.emptyTitle}>Aún no hay plan generado.</Text>
           <Text style={styles.emptyBody}>
-            Completa el onboarding para que Itera genere tu plan semanal.
+            Completa el onboarding para que Itera genere tu plan de entrenamiento.
           </Text>
         </View>
         <Button label="Registrar sesión libre" onPress={() => onRegisterFree(todayIso.slice(0, 10))} variant="secondary" disabled={Boolean(isActiveOrPaused(activeTraining)) || historyLoading} />
@@ -94,9 +97,8 @@ export function TodayScreen({
     );
   }
 
-  const plannedWeekStart = plan.weekStart;
   const todaySessions = getTodaySessions(plan, todayIso);
-  const progress = computeWeekProgress(plan);
+  const progress = computeWeekProgress(currentWeek);
   const isRestDay = todaySessions.length === 0;
   const nextSession = isRestDay ? getNextSession(plan, todayIso) : null;
 
@@ -112,7 +114,7 @@ export function TodayScreen({
 
       {isRestDay ? (
         <FadeIn delay={120}>
-          <RestDayCard day={day} nextSession={nextSession} plan={plan} />
+          <RestDayCard day={day} nextSession={nextSession} />
         </FadeIn>
       ) : (
         <View style={styles.sessionsList}>
@@ -404,27 +406,27 @@ const detailStyles = StyleSheet.create({
 function RestDayCard({
   day,
   nextSession,
-  plan: _plan,
 }: {
   day: WeekDay;
   nextSession: ReturnType<typeof getNextSession>;
-  plan: Plan;
 }) {
   const tokens = useThemeTokens();
+  const todayDate = new Date().toISOString().slice(0, 10);
   if (!nextSession) {
     return (
       <Card padding="lg">
         <Text style={[restStyles.title, { color: tokens.colors.ink }]}>Hoy descansas</Text>
         <Text style={[restStyles.purpose, { color: tokens.colors.textSecondary }]}>
-          No hay sesiones programadas en tu plan semanal. Ve a la pestaña Plan para revisar.
+          No hay más sesiones programadas en tu plan. Puedes pedir al asistente un bloque nuevo o registrar una sesión libre.
         </Text>
       </Card>
     );
   }
 
   const nextDayLabel = DAY_LABELS[nextSession.day];
-  const isToday = nextSession.day === day;
+  const isToday = nextSession.date === todayDate;
   const firstSession = nextSession.sessions[0];
+  const weekLabel = isToday ? '' : ` · ${formatDayDate(nextSession.date)}`;
 
   return (
     <Card padding="lg">
@@ -448,7 +450,7 @@ function RestDayCard({
           {isToday ? 'ESTA ERA LA ÚLTIMA' : 'PRÓXIMA'}
         </Text>
         <Text style={[restStyles.nextTitle, { color: tokens.colors.ink }]}>
-          {nextDayLabel} · {sessionTitle(firstSession)}
+          {nextDayLabel}{weekLabel} · {sessionTitle(firstSession)}
         </Text>
         <Text style={[restStyles.nextMeta, { color: tokens.colors.textSecondary }]}>
           ~{firstSession.estimatedDurationMinutes} min
@@ -488,6 +490,12 @@ function sessionTitle(session: Session): string {
     case 'intervals': return 'Intervalos';
     case 'race': return 'Competición';
   }
+}
+
+function formatDayDate(dateIso: string): string {
+  const date = new Date(`${dateIso.slice(0, 10)}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return dateIso;
+  return new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(date);
 }
 
 function makeStyles(tokens: ReturnType<typeof useThemeTokens>) {

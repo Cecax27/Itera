@@ -49,7 +49,7 @@ El objetivo central: **"Entrena con un propósito. Entiende tu progreso. Siempre
     │   ├── screens/          # Hoy, Plan, Progreso, Ajustes, entrenamiento, asistente y registros
     │   └── hooks/            # Auth, perfil, plan, historial y estado de entrenamiento
     ├── domain/               # Lógica de negocio pura, sin React ni Firebase (ver src/domain/README.md)
-    │   ├── planning/          # Motor del plan semanal y sesión del día
+    │   ├── planning/          # Motor del plan (bloques multi-semana) y sesión del día
     │   ├── assistant/         # Seguridad, fallback y contratos del asistente
     │   ├── training/          # RPE y modelos de resultados
     │   └── README.md         # Reglas de la capa domain
@@ -88,6 +88,8 @@ El objetivo central: **"Entrena con un propósito. Entiende tu progreso. Siempre
 
 - **H7** (Asistente que explica y adapta): `AssistantScreen` contextual desde Hoy; cada usuario elige su API key/modelo en Ajustes (Android SecureStore, nunca en Firestore) y las Functions desplegadas la usan de forma transitoria. Functions lee perfil, plan e historial del uid autenticado, propone cambios auditables y no modifica `plans/current` hasta aceptación explícita. `planChanges` conserva snapshots anterior/propuesto, motivo, fuente, estado y fechas; sus escrituras están bloqueadas al cliente en `firestore.rules`. Hay fallback determinista y filtro de seguridad en cliente y servidor. ✅
 
+- **Plan multi-semana (extensión de H2/H7)**: el `Plan` ya no es una semana suelta sino un **bloque** (`Plan.weeks[]`, cada semana con su `weekStart` y sus sesiones; `Plan.goalDate` opcional). Hoy/Plan/Progreso resuelven la semana que contiene la fecha actual; `PlanScreen` tiene selector de semanas. El motor (`generatePlan` con `PlanHorizon`) y el servidor (`functions/src/plan-block.ts`, espejo determinista) materializan bloques con progresión conservadora: volumen de carrera +5%/semana (tope +30%), descarga cada 4ª semana (×0.8) y descarga final (×0.7); la fuerza no cambia con la progresión de volumen. El asistente ahora tiene dos tipos de propuesta: `kind: 'operations'` (ajustes puntuales, con campo `week` para apuntar a cualquier semana del bloque) y `kind: 'block'` (el modelo solo fija el horizonte — `weeks` 2–26 y/o `goalDate` — y el servidor construye las semanas). Los planes y propuestas antiguos (una sola semana con `sessions` por día) se normalizan al vuelo (`normalizePlan` en cliente, `parsePlanRecord` en Functions). ✅
+
 ### Pendiente de definir (no inventar)
 
 - **Google Sign-In**: queda pendiente hasta que salgamos de Expo Go. Requiere build nativo (EAS Build + `@react-native-google-signin/google-signin` o `expo-auth-session`). En el `firebaseAuthRepository` ya está el método `signInWithGoogle` declarado (lanzando error claro) para que cuando se implemente solo cambie la implementación.
@@ -117,7 +119,7 @@ Consecuencia práctica: las recomendaciones de la IA deben poder cambiar de prov
 Cualquier funcionalidad nueva debe justificarse contra esta lista. Las seis son **imprescindibles** y forman un ciclo completo:
 
 1. **Perfil y objetivos deportivos** — experiencia, objetivos, disponibilidad semanal, equipamiento, preferencias, restricciones.
-2. **Planificador de carrera y fuerza** — plan semanal con sesiones, ejercicios, series, repeticiones, descansos, ritmos o intensidades.
+2. **Planificador de carrera y fuerza** — plan en bloques de una o varias semanas (hasta fecha objetivo) con sesiones, ejercicios, series, repeticiones, descansos, ritmos o intensidades.
 3. **Entrenamiento del día** — sesión recomendada visible al abrir la app, duración estimada, ejecución, propósito; permite marcar ejercicios o bloques como completados.
 4. **Registro de resultados** — guarda lo planificado y lo realizado: duración, distancia, ritmo, pesos, repeticiones, percepción de esfuerzo.
 5. **Historial y análisis** — sesiones anteriores, evolución de marcas, volumen, progresión de cargas, comparaciones con sentido por disciplina.

@@ -7,11 +7,14 @@ import {
   RunSession,
   Session,
   StrengthSession,
+  WeekPlan,
   assignSessionsToDays,
   countAvailableDays,
   defaultPlanConfig,
   generatePlan,
   mondayOf,
+  weeklyVolumeFactor,
+  weeksUntilMonday,
 } from '@/domain/planning';
 
 function makeProfile(overrides: Partial<Profile> = {}): Profile {
@@ -69,8 +72,8 @@ describe('generatePlan', () => {
   it('creates a plan with sessions within [min, max] and <= available days', () => {
     const profile = makeProfile(); // 5 días disponibles
     const plan = generatePlan(profile, defaultPlanConfig(), '2026-10-12T10:00:00Z');
-    expect(plan.sessions).toBeDefined();
-    const total = Object.values(plan.sessions).reduce((sum, list) => sum + list.length, 0);
+    expect(plan.weeks).toHaveLength(1);
+    const total = Object.values(plan.weeks[0].sessions).reduce((sum, list) => sum + list.length, 0);
     expect(total).toBeGreaterThanOrEqual(defaultPlanConfig().minSessionsPerWeek);
     expect(total).toBeLessThanOrEqual(Math.min(defaultPlanConfig().maxSessionsPerWeek, 5));
   });
@@ -78,7 +81,7 @@ describe('generatePlan', () => {
   it('returns an empty plan when no availability', () => {
     const profile = makeProfile({ availability: emptyAvailability() });
     const plan = generatePlan(profile, defaultPlanConfig(), '2026-10-12T10:00:00Z');
-    const total = Object.values(plan.sessions).reduce((sum, list) => sum + list.length, 0);
+    const total = Object.values(plan.weeks[0].sessions).reduce((sum, list) => sum + list.length, 0);
     expect(total).toBe(0);
   });
 
@@ -97,7 +100,7 @@ describe('generatePlan', () => {
     });
     const cfg = { ...defaultPlanConfig(), maxSessionsPerWeek: 4 };
     const plan = generatePlan(profile, cfg, '2026-10-12T10:00:00Z');
-    const total = Object.values(plan.sessions).reduce((sum, list) => sum + list.length, 0);
+    const total = Object.values(plan.weeks[0].sessions).reduce((sum, list) => sum + list.length, 0);
     expect(total).toBe(4);
   });
 
@@ -111,7 +114,7 @@ describe('generatePlan', () => {
       },
     });
     const plan = generatePlan(profile, defaultPlanConfig(), '2026-10-12T10:00:00Z');
-    const disciplines = Object.values(plan.sessions).flat().map((s) => s.discipline);
+    const disciplines = Object.values(plan.weeks[0].sessions).flat().map((s) => s.discipline);
     const running = disciplines.filter((d) => d === 'running').length;
     const strength = disciplines.filter((d) => d === 'strength').length;
     expect(running).toBeGreaterThanOrEqual(strength);
@@ -127,7 +130,7 @@ describe('generatePlan', () => {
       },
     });
     const plan = generatePlan(profile, defaultPlanConfig(), '2026-10-12T10:00:00Z');
-    const disciplines = Object.values(plan.sessions).flat().map((s) => s.discipline);
+    const disciplines = Object.values(plan.weeks[0].sessions).flat().map((s) => s.discipline);
     const running = disciplines.filter((d) => d === 'running').length;
     const strength = disciplines.filter((d) => d === 'strength').length;
     expect(strength).toBeGreaterThanOrEqual(running);
@@ -136,7 +139,7 @@ describe('generatePlan', () => {
   it('puts at least one session of each discipline when count allows', () => {
     const profile = makeProfile();
     const plan = generatePlan(profile, defaultPlanConfig(), '2026-10-12T10:00:00Z');
-    const all = Object.values(plan.sessions).flat();
+    const all = Object.values(plan.weeks[0].sessions).flat();
     const hasRunning = all.some((s) => s.discipline === 'running');
     const hasStrength = all.some((s) => s.discipline === 'strength');
     expect(hasRunning && hasStrength).toBe(true);
@@ -155,6 +158,86 @@ describe('generatePlan', () => {
     expect(p2.id).toBe('id_1');
   });
 });
+
+describe('generatePlan multi-week horizon', () => {
+  it('defaults to a single week without horizon', () => {
+    const profile = makeProfile();
+    const plan = generatePlan(profile, defaultPlanConfig(), '2026-10-12T10:00:00Z');
+    expect(plan.weeks).toHaveLength(1);
+    expect(plan.goalDate).toBeUndefined();
+  });
+
+  it('builds contiguous weeks starting on the current Monday', () => {
+    const profile = makeProfile();
+    const plan = generatePlan(profile, defaultPlanConfig(), '2026-10-14T10:00:00Z', undefined, { weeks: 4 });
+    expect(plan.weekStart).toBe('2026-10-12');
+    expect(plan.weeks).toHaveLength(4);
+    expect(plan.weeks.map((w) => w.weekStart)).toEqual([
+      '2026-10-12', '2026-10-19', '2026-10-26', '2026-11-02',
+    ]);
+  });
+
+  it('keeps the same weekly structure across weeks', () => {
+    const profile = makeProfile();
+    const plan = generatePlan(profile, defaultPlanConfig(), '2026-10-12T10:00:00Z', undefined, { weeks: 3 });
+    const first = plan.weeks[0].sessions;
+    for (const week of plan.weeks.slice(1)) {
+      expect(Object.values(week.sessions).flat().map((s) => s.discipline))
+        .toEqual(Object.values(first).flat().map((s) => s.discipline));
+    }
+  });
+
+  it('progresses running volume between week 1 and week 2', () => {
+    const profile = makeProfile();
+    const plan = generatePlan(profile, defaultPlanConfig(), '2026-10-12T10:00:00Z', undefined, { weeks: 3 });
+    const week1RunningMeters = totalRunMeters(plan.weeks[0]);
+    const week2RunningMeters = totalRunMeters(plan.weeks[1]);
+    expect(week2RunningMeters).toBeGreaterThan(week1RunningMeters);
+    expect(week2RunningMeters).toBeLessThanOrEqual(Math.round(week1RunningMeters * 1.06));
+  });
+
+  it('applies a deload every 4th week and a taper in the last week', () => {
+    expect(weeklyVolumeFactor(1, 6)).toBeCloseTo(1.05);
+    expect(weeklyVolumeFactor(3, 6)).toBe(0.8); // 4ª semana
+    expect(weeklyVolumeFactor(5, 6)).toBe(0.7); // descarga final
+    expect(weeklyVolumeFactor(0, 6)).toBe(1);
+  });
+
+  it('records the goal date when provided', () => {
+    const profile = makeProfile();
+    const plan = generatePlan(profile, defaultPlanConfig(), '2026-10-12T10:00:00Z', undefined, {
+      weeks: 4,
+      goalDate: '2026-11-08',
+    });
+    expect(plan.goalDate).toBe('2026-11-08');
+  });
+
+  it('clamps the horizon to 26 weeks', () => {
+    const profile = makeProfile();
+    const plan = generatePlan(profile, defaultPlanConfig(), '2026-10-12T10:00:00Z', undefined, { weeks: 100 });
+    expect(plan.weeks).toHaveLength(26);
+  });
+});
+
+describe('weeksUntilMonday', () => {
+  it('counts full weeks between a Monday and the goal date', () => {
+    expect(weeksUntilMonday('2026-10-12', '2026-10-12')).toBe(1);
+    expect(weeksUntilMonday('2026-10-18', '2026-10-12')).toBe(1);
+    expect(weeksUntilMonday('2026-10-19', '2026-10-12')).toBe(2);
+    expect(weeksUntilMonday('2026-11-09', '2026-10-12')).toBe(5);
+  });
+
+  it('returns 1 when the goal date is before the start', () => {
+    expect(weeksUntilMonday('2026-10-05', '2026-10-12')).toBe(1);
+  });
+});
+
+function totalRunMeters(week: WeekPlan): number {
+  return Object.values(week.sessions).flat().reduce((sum, session) => {
+    if (session.discipline !== 'running') return sum;
+    return sum + session.blocks.reduce((s, b) => s + b.distanceMeters * (b.repetitions ?? 1), 0);
+  }, 0);
+}
 
 describe('assignSessionsToDays constraints', () => {
   // Helper: crear sesión de fuerza simple.
@@ -319,6 +402,8 @@ describe('Plan shape', () => {
     expect(plan.weekStart).toBe('2026-10-12');
     expect(plan.config).toBeDefined();
     expect(plan.createdAt).toBe('2026-10-12T10:00:00Z');
-    expect(Object.keys(plan.sessions)).toHaveLength(7);
+    expect(plan.weeks).toHaveLength(1);
+    expect(Object.keys(plan.weeks[0].sessions)).toHaveLength(7);
+    expect(plan.weeks[0].weekStart).toBe('2026-10-12');
   });
 });

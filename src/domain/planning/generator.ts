@@ -36,6 +36,20 @@ import {
 
 const DEFAULT_DURATION_MINUTES = 45;
 
+/** Límites del bloque multi-semana. */
+export const MAX_PLAN_WEEKS = 26;
+
+/**
+ * Horizonte del plan: número de semanas del bloque y, opcionalmente,
+ * la fecha objetivo (YYYY-MM-DD) que marca el final del bloque.
+ */
+export interface PlanHorizon {
+  /** Número total de semanas del bloque (1 = plan semanal). */
+  weeks?: number;
+  /** Fecha objetivo del bloque (YYYY-MM-DD). Opcional. */
+  goalDate?: string | null;
+}
+
 /**
  * Devuelve la configuración por defecto del plan. El usuario puede
  * ajustarla en el perfil en el futuro.
@@ -56,7 +70,17 @@ export function countAvailableDays(avail: WeeklyAvailability): number {
 }
 
 /**
- * Genera un plan semanal a partir de un perfil y configuración.
+ * Genera un plan a partir de un perfil y configuración.
+ *
+ * Sin horizonte (o con `horizon.weeks` = 1) genera una sola semana,
+ * igual que en H2. Con horizonte de varias semanas construye un bloque:
+ * la semana 1 usa la estructura estándar y las siguientes repiten la
+ * plantilla con una progresión conservadora:
+ *   - El volumen de carrera (bloques steady/long) sube ~5% semanal,
+ *     con tope de +30% respecto a la semana 1.
+ *   - Cada 4ª semana es descarga (volumen ×0.8).
+ *   - La última semana es descarga de objetivo (×0.7) para llegar
+ *     fresco a la fecha.
  *
  * @param profile perfil del usuario.
  * @param config configuración del plan (min/max sesiones, duración).
@@ -64,12 +88,14 @@ export function countAvailableDays(avail: WeeklyAvailability): number {
  *            para calcular el lunes de la semana actual.
  * @param idFn función que genera IDs únicos. Permite inyectar un mock
  *            determinista en tests.
+ * @param horizon horizonte del bloque (semanas y/o fecha objetivo).
  */
 export function generatePlan(
   profile: Profile,
   config: PlanConfig,
   now: string,
   idFn: () => string = defaultIdFn,
+  horizon?: PlanHorizon,
 ): Plan {
   const availableDays = countAvailableDays(profile.availability);
 
@@ -86,12 +112,116 @@ export function generatePlan(
   // Asignación a días según disponibilidad y restricciones.
   const sessionsByDay = assignSessionsToDays(sessions, profile.availability);
 
+  const startMonday = mondayOf(now);
+  const totalWeeks = clampWeeks(horizon);
+  const weeks = totalWeeks <= 1
+    ? [startMonday]
+    : expandWeekStarts(startMonday, totalWeeks);
+
   return {
     id: idFn(),
-    weekStart: mondayOf(now),
+    weekStart: startMonday,
+    ...(horizon?.goalDate ? { goalDate: horizon.goalDate } : {}),
     config,
-    sessions: sessionsByDay,
+    weeks: weeks.map((weekStart, index) => ({
+      weekStart,
+      sessions: index === 0
+        ? sessionsByDay
+        : applyWeeklyProgression(sessionsByDay, index, totalWeeks),
+    })),
     createdAt: now,
+  };
+}
+
+/** Número de semanas completas entre un lunes y la fecha objetivo. */
+export function weeksUntilMonday(goalDate: string, startMonday: string): number {
+  const [gy, gm, gd] = goalDate.slice(0, 10).split('-').map(Number);
+  const [sy, sm, sd] = startMonday.slice(0, 10).split('-').map(Number);
+  if (!gy || !gm || !gd || !sy || !sm || !sd) return 1;
+  const goal = Date.UTC(gy, gm - 1, gd);
+  const start = Date.UTC(sy, sm - 1, sd);
+  const diffDays = Math.floor((goal - start) / 86_400_000);
+  if (diffDays <= 0) return 1;
+  return Math.floor(diffDays / 7) + 1;
+}
+
+function clampWeeks(horizon?: PlanHorizon): number {
+  const requested = horizon?.weeks ?? 1;
+  if (!Number.isFinite(requested)) return 1;
+  return Math.max(1, Math.min(MAX_PLAN_WEEKS, Math.floor(requested)));
+}
+
+function expandWeekStarts(startMonday: string, count: number): string[] {
+  const [y, m, d] = startMonday.slice(0, 10).split('-').map(Number);
+  const result: string[] = [];
+  for (let i = 0; i < count; i += 1) {
+    const date = new Date(Date.UTC(y, m - 1, d));
+    date.setUTCDate(date.getUTCDate() + 7 * i);
+    result.push(date.toISOString().slice(0, 10));
+  }
+  return result;
+}
+
+/**
+ * Factor de volumen para la semana `index` (0-based) de un bloque de
+ * `totalWeeks` semanas. Semana 0 = 1.
+ */
+export function weeklyVolumeFactor(index: number, totalWeeks: number): number {
+  if (index <= 0 || totalWeeks <= 1) return 1;
+  const isLast = index === totalWeeks - 1;
+  if (isLast && totalWeeks >= 3) return 0.7; // descarga de objetivo
+  if ((index + 1) % 4 === 0) return 0.8; // descarga cada 4 semanas
+  const progressionWeeks = index % 4;
+  return Math.min(1.3, 1 + 0.05 * progressionWeeks);
+}
+
+/**
+ * Repite la plantilla semanal ajustando el volumen de carrera según la
+ * progresión semanal. La fuerza se mantiene igual (la progresión de
+ * cargas reales llegará con el historial de resultados).
+ */
+function applyWeeklyProgression(
+  template: Record<string, readonly Session[]>,
+  index: number,
+  totalWeeks: number,
+): Record<WeekDay, readonly Session[]> {
+  const factor = weeklyVolumeFactor(index, totalWeeks);
+  const sessions = ALL_WEEK_DAYS.map((day) => template[day] ?? []).map((daySessions) =>
+    daySessions.map((session) => (session.discipline === 'running'
+      ? scaleRunSession(session, factor)
+      : session)),
+  );
+  return {
+    mon: sessions[0],
+    tue: sessions[1],
+    wed: sessions[2],
+    thu: sessions[3],
+    fri: sessions[4],
+    sat: sessions[5],
+    sun: sessions[6],
+  };
+}
+
+function scaleRunSession(session: RunSession, factor: number): RunSession {
+  const blocks = session.blocks.map((block) => scaleRunBlock(block, factor));
+  return {
+    ...session,
+    blocks,
+    estimatedDurationMinutes: Math.max(
+      1,
+      Math.round(session.estimatedDurationMinutes * factor),
+    ),
+  };
+}
+
+function scaleRunBlock(block: RunBlock, factor: number): RunBlock {
+  if (factor === 1) return block;
+  // Los calentamientos y enfriamientos se mantienen; el volumen extra
+  // va al trabajo principal (steady/interval).
+  if (block.type !== 'steady' && block.type !== 'interval') return block;
+  return {
+    ...block,
+    distanceMeters: Math.round((block.distanceMeters * factor) / 100) * 100,
   };
 }
 

@@ -60,7 +60,7 @@ El primer usuario es el propio desarrollador, con horarios rotativos y objetivos
 3. **Entrenamiento del día** — sesión recomendada visible al abrir la app, con duración estimada y propósito.
 4. **Registro de resultados** — captura lo planeado y lo realizado: duración, distancia, ritmo, pesos, repeticiones, percepción del esfuerzo.
 5. **Historial y análisis** — consultas de sesiones, evolución de marcas, volumen, progresión de cargas.
-6. **Asistente que explica y adapta** — consulta el historial, explica decisiones y propone cambios ante sesiones completadas, omitidas o cambios de disponibilidad/recuperación.
+6. **Asistente que explica y adapta** — consulta el historial, explica decisiones y propone cambios ante sesiones completadas, omitidas o cambios de disponibilidad/recuperación. También construye **bloques multi-semana** a partir de un horizonte (número de semanas o fecha objetivo), que el motor materializa de forma determinista.
 
 ### Fuera del MVP
 
@@ -187,6 +187,6 @@ Si prefieres no tocar el proyecto `itera-4f63c` durante el desarrollo:
 
 App Android con React Native + Expo SDK 57, Firebase y arquitectura de tres capas.
 
-**H0–H7 cerrados**: bootstrap, perfil y objetivos, planificación semanal, sesión del día, registro de resultados, historial, modo entrenamiento aislado y asistente con IA. H7 está desplegado en Cloud Functions; cada usuario configura su propia API key/modelo en Ajustes (SecureStore) y el plan solo cambia tras aceptar una propuesta. Consulta [`functions/README.md`](./functions/README.md).
+**H0–H7 cerrados**: bootstrap, perfil y objetivos, planificación (ahora en bloques de una o varias semanas con horizonte o fecha objetivo), sesión del día, registro de resultados, historial, modo entrenamiento aislado y asistente con IA (operaciones puntuales y propuestas de bloque). H7 está desplegado en Cloud Functions; cada usuario configura su propia API key/modelo en Ajustes (SecureStore) y el plan solo cambia tras aceptar una propuesta. Consulta [`functions/README.md`](./functions/README.md).
 
 Consulta [`AGENTS.md`](./AGENTS.md) para las guías de trabajo específicas para agentes que desarrollen en este repo.

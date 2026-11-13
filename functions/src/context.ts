@@ -3,6 +3,7 @@ import { DocumentSnapshot, Firestore } from 'firebase-admin/firestore';
 import { PlanRecord } from './plan-change';
 
 export interface AssistantContext {
+  today: string;
   profile: {
     experience: unknown;
     primaryGoal: unknown;
@@ -100,6 +101,7 @@ export async function loadAssistantContext(
   });
 
   return {
+    today: new Date().toISOString(),
     profile: {
       // Excluimos nombre, edad y cualquier identificador personal no necesario.
       experience: profileData.experience ?? null,
