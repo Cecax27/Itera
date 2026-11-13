@@ -35,7 +35,7 @@ function output(partial: Partial<GeneratedPlanOutput> = {}): GeneratedPlanOutput
       tue: [{
         discipline: 'running',
         type: 'easy',
-        blocks: [{ type: 'steady', distanceMeters: 5000, paceSecondsPerKm: null, recoverySeconds: null, repetitions: null }],
+        blocks: [{ type: 'steady', distanceMeters: 5000, durationSeconds: null, paceSecondsPerKm: null, recoverySeconds: null, repetitions: null }],
         purpose: 'Tirada suave',
         estimatedDurationMinutes: 30,
       }],
@@ -96,7 +96,7 @@ describe('assembleDraftPlan', () => {
         mon: [{
           discipline: 'running',
           type: 'easy',
-          blocks: [{ type: 'steady', distanceMeters: 5000, paceSecondsPerKm: null, recoverySeconds: null, repetitions: null }],
+          blocks: [{ type: 'steady', distanceMeters: 5000, durationSeconds: null, paceSecondsPerKm: null, recoverySeconds: null, repetitions: null }],
           purpose: null,
           estimatedDurationMinutes: 30,
         }],

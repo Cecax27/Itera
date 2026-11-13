@@ -360,8 +360,13 @@ function estimateRunMinutes(blocks: readonly RunBlock[], profile: Profile): numb
 
   let totalSeconds = 0;
   for (const block of blocks) {
-    const km = block.distanceMeters / 1000;
-    totalSeconds += km * paceSecondsPerKm;
+    if (block.durationSeconds && block.durationSeconds > 0) {
+      // Bloque medido en tiempo: la duración ya es el trabajo.
+      totalSeconds += block.durationSeconds;
+    } else {
+      const km = block.distanceMeters / 1000;
+      totalSeconds += km * paceSecondsPerKm;
+    }
     if (block.recoverySeconds) {
       // repetitions = 1 ya viene en el bloque; las repeticiones de
       // intervalos reales se modelan como bloques separados, así

@@ -189,4 +189,6 @@ App Android con React Native + Expo SDK 57, Firebase y arquitectura de tres capa
 
 **H0–H7 cerrados**: bootstrap, perfil y objetivos, planificación (ahora en bloques de una o varias semanas con horizonte o fecha objetivo), sesión del día, registro de resultados, historial, modo entrenamiento aislado y asistente con IA (operaciones puntuales y propuestas de bloque). H7 está desplegado en Cloud Functions; cada usuario configura su propia API key/modelo en Ajustes (SecureStore) y el plan solo cambia tras aceptar una propuesta. Consulta [`functions/README.md`](./functions/README.md).
 
+**Exportación a Zepp (Amazfit Bip 6)**: desde el detalle de una sesión de carrera, «Exportar a Zepp» genera la plantilla de entrenamiento con el adaptador del dominio, la publica en nuestro backend (Cloud Functions, URL pública de solo lectura con identificador impredecible) y abre la app Zepp con el deep link `amazfit://` para que el usuario revise, guarde y sincronice la plantilla con el reloj. Los objetivos de ritmo no se exportan (sin códigos verificados) y se informa de ello. Requiere desplegar las Functions.
+
 Consulta [`AGENTS.md`](./AGENTS.md) para las guías de trabajo específicas para agentes que desarrollen en este repo.

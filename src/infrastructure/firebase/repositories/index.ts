@@ -3,3 +3,4 @@ export { firebaseAuthRepository } from './firebaseAuthRepository';
 export { firestorePlanRepository } from './planRepository';
 export { firestoreSessionRecordRepository } from './sessionRecordRepository';
 export { firebaseAssistantRepository } from './assistantRepository';
+export { firebaseZeppTemplateRepository } from './zeppTemplateRepository';

@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https';
 import { logger } from 'firebase-functions';
 
 import { loadAssistantContext } from './context';
@@ -22,6 +22,12 @@ import { assembleDraftPlan,
   requestGeneratedPlan } from './plan-builder';
 import { detectSafetySignal, safetyReply } from './safety';
 import { listAvailableModels, requestAssistantResponse } from './openai-assistant';
+import {
+  REGION as TEMPLATE_REGION,
+  serveWorkoutTemplate,
+  storeWorkoutTemplate,
+  ZeppTemplateSchema,
+} from './zepp-template';
 
 initializeApp();
 const db = getFirestore();
@@ -316,6 +322,36 @@ export const resolvePlanChange = onCall(
       return { status: 'accepted', plan: proposedPlan };
     });
   },
+);
+
+export const createWorkoutTemplate = onCall(
+  { region: REGION, timeoutSeconds: 20, maxInstances: 2 },
+  async (request) => {
+    const userId = request.auth?.uid;
+    if (!userId) throw new HttpsError('unauthenticated', 'Inicia sesión para exportar una sesión.');
+
+    const parsed = ZeppTemplateSchema.safeParse(request.data?.template);
+    if (!parsed.success) {
+      logger.warn('Plantilla Zepp rechazada por el schema.', { issues: parsed.error.issues.slice(0, 5) });
+      throw new HttpsError('invalid-argument', 'La plantilla no tiene una estructura Zepp válida.');
+    }
+
+    try {
+      const result = await storeWorkoutTemplate(db, parsed.data, userId);
+      return result;
+    } catch (err) {
+      logger.error('Falló el almacenamiento de la plantilla Zepp.', { error: err instanceof Error ? err.message : String(err) });
+      throw new HttpsError('unavailable', 'No se pudo publicar la plantilla. Inténtalo de nuevo.');
+    }
+  },
+);
+
+// Endpoint público de solo lectura: Zepp descarga la plantilla desde aquí
+// sin sesión de Itera. Sirve únicamente el JSON de la plantilla (sin datos
+// del usuario) y no permite modificar nada.
+export const workoutTemplate = onRequest(
+  { region: TEMPLATE_REGION, timeoutSeconds: 20, maxInstances: 2 },
+  (request, response) => serveWorkoutTemplate(db, request, response),
 );
 
 function stableStringify(value: unknown): string {

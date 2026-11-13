@@ -24,12 +24,20 @@ export type RunType =
  * Bloque de carrera. Una sesión de carrera puede tener varios bloques
  * (por ejemplo, calentamiento + intervalo + enfriamiento). En el MVP
  * simplificamos: una sesión tiene varios RunBlock encadenados.
+ *
+ * Cada bloque mide su trabajo en UNA dimensión: distancia (distanceMeters
+ * > 0) o tiempo (durationSeconds > 0), nunca ambas ni ninguna. Las etapas
+ * en tiempo (p. ej. "10 min de calentamiento") usan distanceMeters = 0.
+ * Esta estructura explícita es la que permite exportar la sesión a Zepp
+ * sin interpretar texto libre.
  */
 export interface RunBlock {
   /** Tipo de trabajo: fácil, intervalo, recuperación, etc. */
   type: 'warmup' | 'interval' | 'recovery' | 'cooldown' | 'steady';
-  /** Distancia en metros. */
+  /** Distancia en metros. 0 si el bloque se mide en tiempo. */
   distanceMeters: number;
+  /** Duración en segundos. Omitido o 0 si el bloque se mide en distancia. */
+  durationSeconds?: number;
   /** Ritmo objetivo en segundos por kilómetro (opcional, depende del tipo). */
   paceSecondsPerKm?: number;
   /** Para intervalos: tiempo de descanso entre repeticiones, en segundos. */

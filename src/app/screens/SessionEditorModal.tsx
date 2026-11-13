@@ -96,9 +96,19 @@ export function SessionEditorModal({ target, onClose, onSave, onDelete }: Sessio
       const blocks = run.blocks.map((block, i) => {
         const edit = blockEdits[blockKey(i)];
         const km = edit ? parseKm(edit.km) : block.distanceMeters / 1000;
-        if (km === null || km <= 0) throw new Error('Escribe una distancia válida (km) en cada bloque.');
+        // Los bloques medidos en tiempo (distanceMeters = 0) no se editan
+        // por distancia: se conservan tal cual, salvo que el usuario escriba
+        // una distancia válida que los convierta en bloques por distancia.
+        if (km === null || km <= 0) {
+          if (block.durationSeconds && block.durationSeconds > 0 && !edit) return block;
+          throw new Error('Escribe una distancia válida (km) en cada bloque.');
+        }
+        // Al convertir a distancia, la duración deja de aplicar; se quita
+        // la clave para no persistir undefined (Firestore no lo admite).
+        const { durationSeconds: _dropped, ...base } = block;
+        void _dropped;
         return {
-          ...block,
+          ...base,
           distanceMeters: Math.round(km * 1000),
         };
       });
@@ -321,12 +331,19 @@ function RunBlockEditor({
   const labels: Record<string, string> = {
     warmup: 'Calentamiento', interval: 'Intervalo', recovery: 'Recuperación', cooldown: 'Enfriamiento', steady: 'Tirada continua',
   };
+  const isTimeBased = Boolean(block.durationSeconds && block.durationSeconds > 0);
   return (
     <View style={[styles.card, { borderColor: tokens.colors.border, backgroundColor: tokens.colors.surfaceElevated }]}>
       <Text style={styles.exerciseName}>{labels[block.type] ?? block.type} {index + 1}</Text>
-      <View style={styles.row}>
-        <Field label="Distancia (km)" value={edit.km} onChangeText={(km) => onChange({ ...edit, km })} />
-      </View>
+      {isTimeBased ? (
+        <Text style={[styles.helper, { color: tokens.colors.textSecondary }]}>
+          Bloque en tiempo: {Math.round((block.durationSeconds ?? 0) / 60)} min. Escribe una distancia en km si quieres convertirlo en bloque por distancia.
+        </Text>
+      ) : (
+        <View style={styles.row}>
+          <Field label="Distancia (km)" value={edit.km} onChangeText={(km) => onChange({ ...edit, km })} />
+        </View>
+      )}
       {block.recoverySeconds !== undefined && (
         <Text style={[styles.helper, { color: tokens.colors.textSecondary }]}>
           Recuperación entre repeticiones: {block.recoverySeconds} s

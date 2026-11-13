@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Button, Card, RecordedSessionCard, Screen as ScreenLayout } from '@/app/components';
+import { useZeppExport } from '@/app/hooks';
 import { WeekDay } from '@/domain/profile';
 import { Session } from '@/domain/planning';
 import {
@@ -48,6 +49,12 @@ export function SessionDetailScreen({
 }: SessionDetailScreenProps) {
   const tokens = useThemeTokens();
   const styles = makeStyles(tokens);
+  // Exportación a Zepp: el hook valida, publica y abre el deep link.
+  // El título de la plantilla incluye el día para reconocerla en Zepp.
+  const { exporting: exportingZepp, exportToZepp } = useZeppExport(
+    session,
+    session ? `${sessionTitle(session)} · ${DAY_SHORT_LABELS[day]}` : '',
+  );
 
   if (!session) {
     return (
@@ -111,9 +118,11 @@ export function SessionDetailScreen({
             : session.blocks.map((block, i) => {
               const repetitions = block.repetitions ?? 1;
               const isIntervalWithReps = block.type === 'interval' && repetitions > 1;
-              const distanceText = isIntervalWithReps
-                ? `${formatRunDistance(block.distanceMeters)} × ${repetitions} = ${formatRunDistance(block.distanceMeters * repetitions)}`
-                : formatRunDistance(block.distanceMeters * repetitions);
+              const distanceText = block.durationSeconds
+                ? formatRunDuration(block.durationSeconds * repetitions)
+                : isIntervalWithReps
+                  ? `${formatRunDistance(block.distanceMeters)} × ${repetitions} = ${formatRunDistance(block.distanceMeters * repetitions)}`
+                  : formatRunDistance(block.distanceMeters * repetitions);
               return (
                 <View key={i} style={i > 0 ? styles.rowSpacing : undefined}>
                   <Text style={styles.itemName}>
@@ -159,11 +168,20 @@ export function SessionDetailScreen({
           />
         ) : null}
         <Button
+          label="Exportar a Zepp"
+          onPress={exportToZepp}
+          variant="outline"
+          loading={exportingZepp}
+          disabled={historyLoading}
+          accessibilityLabel="Exportar esta sesión como plantilla a la app Zepp"
+          style={registered || inProgress ? styles.exportButtonSpacing : undefined}
+        />
+        <Button
           label="Editar sesión"
           onPress={onEditSession}
           variant="secondary"
-          disabled={otherActiveBlocking}
-          style={registered || inProgress ? undefined : styles.editButtonSpacing}
+          disabled={otherActiveBlocking || exportingZepp}
+          style={styles.editButtonSpacing}
         />
       </View>
     </ScreenLayout>
@@ -178,6 +196,16 @@ const DAY_FULL_LABELS: Record<WeekDay, string> = {
   fri: 'Viernes',
   sat: 'Sábado',
   sun: 'Domingo',
+};
+
+const DAY_SHORT_LABELS: Record<WeekDay, string> = {
+  mon: 'lunes',
+  tue: 'martes',
+  wed: 'miércoles',
+  thu: 'jueves',
+  fri: 'viernes',
+  sat: 'sábado',
+  sun: 'domingo',
 };
 
 function Header({ onPress, dayLabel, tokens }: { onPress: () => void; dayLabel: string; tokens: ReturnType<typeof useThemeTokens> }) {
@@ -241,6 +269,13 @@ function formatRunDistance(meters: number): string {
   if (meters < 1000) return `${meters} m`;
   const whole = meters / 1000;
   return `${Number.isInteger(whole) ? whole : whole.toFixed(1)} km`;
+}
+
+function formatRunDuration(totalSeconds: number): string {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = Math.round(totalSeconds % 60);
+  if (seconds === 0) return `${minutes} min`;
+  return `${minutes} min ${seconds} s`;
 }
 
 function makeStyles(tokens: ReturnType<typeof useThemeTokens>) {
@@ -311,6 +346,9 @@ function makeStyles(tokens: ReturnType<typeof useThemeTokens>) {
     },
     actions: {
       marginTop: tokens.spacing.sm,
+    },
+    exportButtonSpacing: {
+      marginTop: tokens.spacing.md,
     },
     editButtonSpacing: {
       marginTop: tokens.spacing.md,

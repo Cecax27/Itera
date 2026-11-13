@@ -1,0 +1,15 @@
+env: load .env
+env: export EXPO_PUBLIC_FIREBASE_API_KEY EXPO_PUBLIC_FIREBASE_APP_ID EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN EXPO_PUBLIC_FIREBASE_AUTH_EMULATOR_PORT EXPO_PUBLIC_FIREBASE_EMULATOR_HOST EXPO_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_PORT EXPO_PUBLIC_FIREBASE_FUNCTIONS_PORT EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID EXPO_PUBLIC_FIREBASE_PROJECT_ID EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET EXPO_PUBLIC_USE_FIREBASE_EMULATOR
+Starting project at /home/opencode/projects/Itera
+Using src/app as the root directory for Expo Router.
+ ERROR  An unknown error occurred while installing React Native DevTools. Details:
+
+/home/opencode/projects/Itera/node_modules/@react-native/debugger-shell/bin/react-native-devtools: error while loading shared libraries: libatk-1.0.so.0: cannot open shared object file: No such file or directory
+
+Starting Metro Bundler
+
+Waiting on http://localhost:8081
+
+An update for expo is available: 57.0.28 → ~57.0.30
+0 other packages may need updating. Run npx expo install --check for details.
+Logs for your project will appear below.

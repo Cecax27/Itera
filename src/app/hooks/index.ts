@@ -15,3 +15,5 @@ export { useAssistant } from './useAssistant';
 export { useAssistantSettings } from './useAssistantSettings';
 export { usePlanBuilder } from './usePlanBuilder';
 export type { UsePlanBuilderResult } from './usePlanBuilder';
+export { useZeppExport } from './useZeppExport';
+export type { UseZeppExportResult } from './useZeppExport';

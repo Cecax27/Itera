@@ -24,6 +24,7 @@ import {
   getTodaySessions,
   weekDayOf,
   weekPlanForDate,
+  RunBlock,
 } from '@/domain/planning';
 import { WeekDay } from '@/domain/profile';
 import { ActiveTrainingSession, plannedSessionRecordId, RecordedTrainingSession } from '@/domain/training';
@@ -391,12 +392,20 @@ function RunningDetails({ session }: { session: RunSession }) {
           key={i}
           style={[detailStyles.item, { color: tokens.colors.textSecondary }]}
         >
-          · {b.type}: {b.distanceMeters}m
+          · {b.type}: {blockMeasure(b)}
           {b.repetitions && b.repetitions > 1 ? ` × ${b.repetitions}` : ''}
         </Text>
       ))}
     </View>
   );
+}
+
+/** Distancia o duración de un bloque, según su dimensión declarada. */
+function blockMeasure(block: RunBlock): string {
+  if (block.durationSeconds && block.durationSeconds > 0) {
+    return `${Math.round(block.durationSeconds / 60)} min`;
+  }
+  return `${block.distanceMeters}m`;
 }
 
 const detailStyles = StyleSheet.create({

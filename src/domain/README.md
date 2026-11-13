@@ -20,6 +20,7 @@ El dominio puede depender de TypeScript built-ins y de utilidades compartidas, n
 - **Modo H6**: `TrainingProgress` conserva estado, posición y temporizador opcional; una serie omitida se registra como omitida, sin resultados ficticios.
 - **Asistente H7**: los cambios se proponen como eventos con snapshots anterior/propuesto; el dominio distingue seguridad/fallback y no aplica cambios sin aceptación explícita.
 - **Creador de plan H8**: `brief.ts` define el payload del asistente de creación guiada (objetivo, días, disponibilidad, equipamiento, notas) y `GeneratedPlanResult` (borrador del modelo). `edits.ts` agrupa las operaciones puras de edición manual del plan (mover, eliminar, reemplazar sesión); la persistencia es del hook, nunca de estas funciones.
+- **Exportación a Zepp (`zepp/`)**: adaptador puro `template.ts` que convierte una sesión de carrera en la plantilla JSON que importa la app Zepp (Amazfit), solo con códigos verificados del protocolo real; `deep-link.ts` construye el enlace `amazfit://` con la URL pública de la plantilla; `repository.ts` es el puerto de publicación (la implementación vive en `infrastructure`). `fixtures.ts` guarda la plantilla real observada como referencia de compatibilidad.
 - **Validaciones**: funciones que validan invariantes del dominio (no de UI).
 - **Reglas del motor de planificación**: generación, progresión, restricciones de simultaneidad entre carrera y fuerza.
 - **Adaptadores puros**: funciones que convierten entre tipos de Firestore y tipos de dominio (cuando la lógica no requiere Firebase, solo tipos).

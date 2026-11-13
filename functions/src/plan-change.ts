@@ -11,13 +11,35 @@ const PlanConfigSchema = z.object({
   targetSessionMinutes: z.number().positive(),
 }).strict();
 
-const PersistedRunBlockSchema = z.object({
+const RunBlockDimensionsBase = {
   type: z.enum(['warmup', 'interval', 'recovery', 'cooldown', 'steady']),
-  distanceMeters: z.number().positive(),
   paceSecondsPerKm: z.number().positive().optional(),
   recoverySeconds: z.number().nonnegative().optional(),
   repetitions: z.number().int().positive().optional(),
-}).strict();
+} as const;
+
+/**
+ * Cada bloque mide su trabajo en UNA dimensión: distancia en metros o
+ * tiempo en segundos. Nunca ambas ni ninguna: sin esta regla, un bloque
+ * podría exportarse a Zepp con valores vacíos o duplicados.
+ */
+const RunBlockDimensionsRefine = (data: {
+  distanceMeters?: number;
+  durationSeconds?: number;
+}): boolean => {
+  const distance = data.distanceMeters ?? 0;
+  const duration = data.durationSeconds ?? 0;
+  // Exactamente una dimensión positiva: evita bloques vacíos y dobles medidas.
+  return (distance > 0) !== (duration > 0);
+};
+
+const RunBlockDimensionMessage = 'Cada bloque debe tener distancia en metros o duración en segundos, pero no ambas.';
+
+const PersistedRunBlockSchema = z.object({
+  ...RunBlockDimensionsBase,
+  distanceMeters: z.number().nonnegative(),
+  durationSeconds: z.number().nonnegative().optional(),
+}).strict().refine(RunBlockDimensionsRefine, { message: RunBlockDimensionMessage });
 
 const PersistedStrengthExerciseSchema = z.object({
   id: z.string().min(1).max(120),
@@ -110,6 +132,7 @@ export function parsePlanRecord(raw: unknown): PlanRecord {
 const ModelRunBlockSchema = z.object({
   type: z.enum(['warmup', 'interval', 'recovery', 'cooldown', 'steady']),
   distanceMeters: z.number(),
+  durationSeconds: z.number().nullable(),
   paceSecondsPerKm: z.number().nullable(),
   recoverySeconds: z.number().nullable(),
   repetitions: z.number().nullable(),
@@ -291,9 +314,10 @@ export function normalizeSession(session: ModelSession) {
 }
 
 export function normalizeRunBlock(block: ModelRunBlock) {
-  const { paceSecondsPerKm, recoverySeconds, repetitions, ...base } = block;
+  const { paceSecondsPerKm, recoverySeconds, repetitions, durationSeconds, ...base } = block;
   return {
     ...base,
+    ...(durationSeconds === null ? {} : { durationSeconds }),
     ...(paceSecondsPerKm === null ? {} : { paceSecondsPerKm }),
     ...(recoverySeconds === null ? {} : { recoverySeconds }),
     ...(repetitions === null ? {} : { repetitions }),

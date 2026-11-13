@@ -381,7 +381,7 @@ export function TrainingScreen({
           <View style={styles.blockList}>
             {session.blocks.map((block, index) => (
               <Text key={`${block.type}_${index}`} style={styles.secondaryText}>
-                {blockLabel(block.type)} · {block.distanceMeters} m
+                {blockLabel(block.type)} · {block.durationSeconds && block.durationSeconds > 0 ? `${Math.round(block.durationSeconds / 60)} min` : `${block.distanceMeters} m`}
                 {block.repetitions && block.repetitions > 1 ? ` × ${block.repetitions}` : ''}
                 {block.paceSecondsPerKm ? ` · ${formatPace(block.paceSecondsPerKm)}` : ''}
               </Text>
